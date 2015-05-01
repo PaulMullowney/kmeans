@@ -60,6 +60,10 @@ kmeans<TYPE>::kmeans(const int m, const int n, const int k,
   dev_counts = NULL;
   dev_counts_large = NULL;
   dev_compactness = NULL;
+
+  int dev;
+  cudaGetDevice(&dev);
+  cudaDeviceReset();
 }
 
 template<class TYPE>
