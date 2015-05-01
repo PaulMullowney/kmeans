@@ -1,0 +1,121 @@
+#if !defined(_MULTIPLY_HCU_)
+#define _MULTIPLY_HCU_
+
+#include "zero.hcu"
+#include "loadA.hcu"
+#include "loadB.hcu"
+#include "fma.hcu"
+#include "dotproducts.hcu"
+#include "writeResults.hcu"
+
+
+template<class TYPE, class VTYPE, const int N_UNROLL, const int DELTA>
+__device__ void multiply(TYPE * __restrict__ A, TYPE * __restrict__ B, VTYPE* Creg,
+			 VTYPE Ashmem[TILESIZEY][TILESIZEY],
+			 VTYPE Bshmem[TILESIZEY][TILESIZEX]) {
+
+  /* prefetch the first tiles */
+  VTYPE Areg = _dev_loadA<TYPE,VTYPE>(A);
+  VTYPE Breg = _dev_loadB<TYPE,VTYPE>(B);
+
+  /* loop over the interior tiles */
+  for (int n=1; n<=dev_N; ++n) {
+    /* transfer A registers to shmem */
+    Ashmem[threadIdx.y][threadIdx.x] = Areg;
+    Bshmem[threadIdx.x][threadIdx.y] = Breg;
+    __syncthreads();
+    
+    /* load the next A tiles */
+    A+=TILESIZE;
+    B+=TILESIZE*dev_nColsB;
+    if (n<dev_N || threadIdx.x<DELTA) Areg = _dev_loadA<TYPE,VTYPE>(A);
+    if (n<dev_N || threadIdx.y<DELTA) Breg = _dev_loadB<TYPE,VTYPE>(B);  
+
+    /* compute the dot products */
+    _dev_dotproducts<VTYPE>(Ashmem,Bshmem,Creg);
+    __syncthreads();
+  }
+
+  /* transfer registers to shmem */
+  Ashmem[threadIdx.y][threadIdx.x] = Areg;
+  Bshmem[threadIdx.x][threadIdx.y] = Breg;
+  __syncthreads();
+  
+  /* compute the dot products */
+  _dev_dotproducts<DELTA>(Ashmem,Bshmem,Creg);
+}
+
+template<class TYPE, class VTYPE, const int NREGS>
+__device__ void multiply2(const int tidx, TYPE * __restrict__ A, TYPE * __restrict__ B,
+			  VTYPE* Creg, VTYPE Ashmem[TILESIZE][TILESIZE]) {
+
+  int n, i;
+
+  /* allocate and initialize registers */
+  VTYPE Areg[NREGS];
+  TYPE Breg;
+  
+  /* prefetch the first tiles */
+  for (i=0; i<NREGS; ++i) {
+    int ir = (i*blockDim.y+threadIdx.y)*dev_nColsA;
+    Areg[i].x = A[ir];
+    Areg[i].y = A[ir+TILESIZE*dev_nColsA];
+  }
+  
+  /* loop over the interior tiles */
+  for (n=0; n<dev_N; ++n) {
+    /* transfer A registers to shmem */
+    for (i=0; i<NREGS; ++i)
+      Ashmem[threadIdx.y+i*blockDim.y][threadIdx.x] = Areg[i];
+    __syncthreads();
+
+    A+=TILESIZE;
+    for (i=0; i<NREGS; ++i) {
+      int ir = (i*blockDim.y+threadIdx.y)*dev_nColsA;
+      Areg[i].x = A[ir];
+      Areg[i].y = A[ir+TILESIZE*dev_nColsA];
+    }
+
+    /* outer products */    
+#pragma unroll
+    for (i=0; i<TILESIZE; ++i) {
+      Breg = B[0];      
+      for (int j=0; j<16; ++j) {
+	Creg[j].x += Breg * Ashmem[j][i].x;
+	Creg[j].y += Breg * Ashmem[j][i].y;
+      }
+      B += dev_nColsB;
+    }
+    __syncthreads();
+  }
+  
+  /* load the last tiles from A */
+  for (i=0; i<NREGS; ++i) {
+    int ir = (i*blockDim.y+threadIdx.y)*dev_nColsA;
+    if (threadIdx.x<dev_DELTA) {
+      Areg[i].x = A[ir];
+      Areg[i].y = A[ir+TILESIZE*dev_nColsA];
+    } else {
+      Areg[i].x = 0.;
+      Areg[i].y = 0.;
+    }
+  }
+
+  /* transfer registers to shmem */
+  for (i=0; i<NREGS; ++i)
+    Ashmem[threadIdx.y+i*blockDim.y][threadIdx.x] = Areg[i];
+  __syncthreads();
+  
+  /* outer products */    
+#pragma unroll
+  for (i=0; i<dev_DELTA; ++i) {
+    Breg = B[0];
+    for (int j=0; j<16; ++j) {
+      Creg[j].x += Breg * Ashmem[j][i].x;
+      Creg[j].y += Breg * Ashmem[j][i].y;
+    }
+    B += dev_nColsB;
+  }
+}
+
+#endif /* !defined(_MULTIPLY_HCU_) */

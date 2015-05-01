@@ -1,0 +1,25 @@
+#if !defined(_ZERO_HCU_)
+#define _ZERO_HCU_
+
+template<class VTYPE>
+__device__ __inline__ void zero(VTYPE& x) {}
+
+template<>
+__device__ __inline__ void zero(float2& x) { x.x=0; x.y=0; }
+
+template<>
+__device__ __inline__ void zero(double2& x) { x.x=0; x.y=0; }
+
+template<>
+__device__ __inline__ void zero(float3& x) { x.x=0; x.y=0; x.z=0; }
+
+template<>
+__device__ __inline__ void zero(double3& x) { x.x=0; x.y=0; x.z=0; }
+
+template<>
+__device__ __inline__ void zero(float4& x) { x.x=0; x.y=0; x.z=0; x.w=0; }
+
+template<>
+__device__ __inline__ void zero(double4& x) { x.x=0; x.y=0; x.z=0; x.w=0; }
+
+#endif /* !defined(_ZERO_HCU_) */

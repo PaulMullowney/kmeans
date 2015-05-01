@@ -1,0 +1,247 @@
+#if !defined(_REDUCTION_HCU_)
+#define _REDUCTION_HCU_
+
+#include "fma.hcu"
+#include "vectorMin.hcu"
+
+inline __device__ float fminf(float a, float b, float ia, float ib, float& i)
+{
+  if (a<b) {i=ia; return a; }
+  else if (a==b && ib<ia) {i = ib; return a; }
+  else {i=ib; return b; }
+}
+
+inline __device__ float fminf(float a, float b, int ia, int ib, int& i)
+{
+  if (a<b) {i=ia; return a; }
+  else if (a==b && ib<ia) {i = ib; return a; }
+  else {i=ib; return b; }
+}
+
+__inline__ __device__ float2 fminf(float2 a, float2 b, float2 ia, float2 ib, float2& i)
+{
+  return make_float2(fminf(a.x,b.x,ia.x,ib.x,i.x), 
+		     fminf(a.y,b.y,ia.y,ib.y,i.y));
+}
+
+__inline__ __device__ float4 fminf(float4 a, float4 b, float4 ia, float4 ib, float4& i)
+{
+  return make_float4(fminf(a.x,b.x,ia.x,ib.x,i.x), 
+		     fminf(a.y,b.y,ia.y,ib.y,i.y), 
+		     fminf(a.z,b.z,ia.z,ib.z,i.z), 
+		     fminf(a.w,b.w,ia.w,ib.w,i.w));
+}
+
+
+inline __device__ double fmin(double a, double b, double ia, double ib, double& i)
+{
+  if (a<b) {i=ia; return a; }
+  else if (a==b && ib<ia) {i = ib; return a; }
+  else {i=ib; return b; }
+}
+
+inline __device__ double fmin(double a, double b, int ia, int ib, int& i)
+{
+  if (a<b) {i=ia; return a; }
+  else if (a==b && ib<ia) {i = ib; return a; }
+  else {i=ib; return b; }
+}
+
+__inline__ __device__ double2 fmin(double2 a, double2 b, double2 ia, double2 ib, double2& i)
+{
+  return make_double2(fmin(a.x,b.x,ia.x,ib.x,i.x), 
+		      fmin(a.y,b.y,ia.y,ib.y,i.y));
+}
+
+__inline__ __device__ double4 fmin(double4 a, double4 b, double4 ia, double4 ib, double4& i)
+{
+  return make_double4(fmin(a.x,b.x,ia.x,ib.x,i.x), 
+		      fmin(a.y,b.y,ia.y,ib.y,i.y), 
+		      fmin(a.z,b.z,ia.z,ib.z,i.z), 
+		      fmin(a.w,b.w,ia.w,ib.w,i.w));
+}
+
+template<class VTYPE>
+__device__ __inline__ void _dev_reduction(const int c, VTYPE * Creg, VTYPE L2normA[TILESIZE], 
+						 VTYPE L2normB[TILESIZE], 
+						 VTYPE A[TILESIZEY][TILESIZEY],
+						 VTYPE B[TILESIZEY][TILESIZEX]) {
+}
+
+template<>
+__device__ __inline__ void _dev_reduction(const int c, float2 * Creg, float2 L2normA[TILESIZE],
+						 float2 L2normB[TILESIZE],
+						 float2 A[TILESIZEY][TILESIZEY],
+						 float2 B[TILESIZEY][TILESIZEX]) {
+
+  float * x = reinterpret_cast<float *>(&(L2normA[threadIdx.y]));
+
+  int tidx = threadIdx.x;
+  int tidy = threadIdx.y;
+
+  int2 i;
+  float2 s;
+  float2 v;
+  float2 t = L2normB[tidx];
+
+  v = fms_shift<float,float2>(Creg[0],t,x[0]);
+  vectorMin<float,float2>(v,s.x,i.x);
+  
+  v = fms_shift<float,float2>(Creg[1],t,x[1]);
+  vectorMin<float,float2>(v,s.y,i.y);
+    
+  A[tidy][tidx] = s;
+  B[tidy][tidx] = make_float2(i.x*TILESIZE+c,i.y*TILESIZE+c);
+  
+  __syncthreads();
+    
+  /* perform the partial reduction over each row in the  buffers */
+  int j = TILESIZE >> 1;
+  while (j>=1) {
+    if (tidx<j) {
+      A[tidy][tidx] = fminf(A[tidy][tidx],A[tidy][tidx+j],
+			    B[tidy][tidx],B[tidy][tidx+j],v);
+      B[tidy][tidx] = v;
+    }
+	__syncthreads();
+    j >>= 1;
+  }
+  __syncthreads();
+}
+
+template<>
+__device__ __inline__ void _dev_reduction(const int c, double2 * Creg, double2 L2normA[TILESIZE], 
+						 double2 L2normB[TILESIZE],
+						 double2 A[TILESIZEY][TILESIZEY],
+						 double2 B[TILESIZEY][TILESIZEX]) {
+
+  double * x = reinterpret_cast<double *>(&(L2normA[threadIdx.y]));
+
+  int tidx = threadIdx.x;
+  int tidy = threadIdx.y;
+
+  int2 i;
+  double2 s;
+  double2 v;
+  double2 t = L2normB[tidx];
+
+  v = fms_shift<double,double2>(Creg[0],t,x[0]);
+  vectorMin<double,double2>(v,s.x,i.x);
+  
+  v = fms_shift<double,double2>(Creg[1],t,x[1]);
+  vectorMin<double,double2>(v,s.y,i.y);
+    
+  A[tidy][tidx] = s;
+  B[tidy][tidx] = make_double2(i.x*TILESIZE+c,i.y*TILESIZE+c);
+  
+  __syncthreads();
+    
+  /* perform the partial reduction over each row in the  buffers */
+  int j = TILESIZE >> 1;
+  while (j>=1) {
+    if (tidx<j) {
+      A[tidy][tidx] = fmin(A[tidy][tidx],A[tidy][tidx+j],
+			   B[tidy][tidx],B[tidy][tidx+j],v);
+      B[tidy][tidx] = v;
+    }
+    j >>= 1;
+  }
+  __syncthreads();
+}
+
+template<>
+__device__ __inline__ void _dev_reduction(const int c, float4 * Creg, float4 L2normA[TILESIZE],
+						 float4 L2normB[TILESIZE],
+						 float4 A[TILESIZEY][TILESIZEY],
+						 float4 B[TILESIZEY][TILESIZEX]) {
+
+  float * x = reinterpret_cast<float *>(&(L2normA[threadIdx.y]));
+
+  int tidx = threadIdx.x;
+  int tidy = threadIdx.y;
+
+  int4 i;
+  float4 s;
+  float4 v;
+  float4 t = L2normB[tidx];
+
+  v = fms_shift<float,float4>(Creg[0],t,x[0]);
+  vectorMin<float,float4>(v,s.x,i.x);
+  
+  v = fms_shift<float,float4>(Creg[1],t,x[1]);
+  vectorMin<float,float4>(v,s.y,i.y);
+  
+  v = fms_shift<float,float4>(Creg[2],t,x[2]);
+  vectorMin<float,float4>(v,s.z,i.z);
+  
+  v = fms_shift<float,float4>(Creg[3],t,x[3]);
+  vectorMin<float,float4>(v,s.w,i.w);
+  
+  A[tidy][tidx] = s;
+  B[tidy][tidx] = make_float4(i.x*TILESIZE+c,i.y*TILESIZE+c,
+			      i.z*TILESIZE+c,i.w*TILESIZE+c);
+  
+  __syncthreads();
+    
+  /* perform the partial reduction over each row in the  buffers */
+  int j = TILESIZE >> 1;
+  while (j>=1) {
+    if (tidx<j) {
+      A[tidy][tidx] = fminf(A[tidy][tidx],A[tidy][tidx+j],
+			    B[tidy][tidx],B[tidy][tidx+j],v);
+      B[tidy][tidx] = v;
+    }
+	__syncthreads();
+    j >>= 1;
+  }
+  __syncthreads();
+}
+
+template<>
+__device__ __inline__ void _dev_reduction(const int c, double4 * Creg, double4 L2normA[TILESIZE],
+						 double4 L2normB[TILESIZE],
+						 double4 A[TILESIZEY][TILESIZEY],
+						 double4 B[TILESIZEY][TILESIZEX]) {
+
+  double * x = reinterpret_cast<double *>(&(L2normA[threadIdx.y]));
+
+  int tidx = threadIdx.x;
+  int tidy = threadIdx.y;
+
+  int4 i;
+  double4 s;
+  double4 v;
+  double4 t = L2normB[tidx];
+
+  v = fms_shift<double,double4>(Creg[0],t,x[0]);
+  vectorMin<double,double4>(v,s.x,i.x);
+  
+  v = fms_shift<double,double4>(Creg[1],t,x[1]);
+  vectorMin<double,double4>(v,s.y,i.y);
+  
+  v = fms_shift<double,double4>(Creg[2],t,x[2]);
+  vectorMin<double,double4>(v,s.z,i.z);
+  
+  v = fms_shift<double,double4>(Creg[3],t,x[3]);
+  vectorMin<double,double4>(v,s.w,i.w);
+  
+  A[tidy][tidx] = s;
+  B[tidy][tidx] = make_double4(i.x*TILESIZE+c,i.y*TILESIZE+c,
+			       i.z*TILESIZE+c,i.w*TILESIZE+c);
+  
+  __syncthreads();
+    
+  /* perform the partial reduction over each row in the  buffers */
+  int j = TILESIZE >> 1;
+  while (j>=1) {
+    if (tidx<j) {
+      A[tidy][tidx] = fmin(A[tidy][tidx],A[tidy][tidx+j],
+			   B[tidy][tidx],B[tidy][tidx+j],v);
+      B[tidy][tidx] = v;
+    }
+    j >>= 1;
+  }
+  __syncthreads();
+}
+
+#endif /* !defined(_REDUCTION_HCU_) */

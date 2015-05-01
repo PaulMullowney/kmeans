@@ -1,0 +1,29 @@
+#if !defined(_LOAD_A_HCU_)
+#define _LOAD_A_HCU_
+
+
+template<class TYPE, class VTYPE>
+__device__ __inline__ VTYPE _dev_loadA(const TYPE * __restrict__ A) {
+}
+
+template<>
+__device__ __inline__ float2 _dev_loadA(const float * __restrict__ A) {
+  return make_float2(A[0], A[ASTRIDE]); 
+}
+
+template<>
+__device__ __inline__ double2 _dev_loadA(const double * __restrict__ A) {
+  return make_double2(A[0], A[ASTRIDE]); 
+}
+
+template<>
+__device__ __inline__ float4 _dev_loadA(const float * __restrict__ A) {
+  return make_float4(A[0], A[ASTRIDE], A[2*ASTRIDE], A[3*ASTRIDE]);
+}
+
+template<>
+__device__ __inline__ double4 _dev_loadA(const double * __restrict__ A) {
+  return make_double4(A[0], A[ASTRIDE], A[2*ASTRIDE], A[3*ASTRIDE]);
+}
+
+#endif /* !defined(_LOAD_A_HCU_) */

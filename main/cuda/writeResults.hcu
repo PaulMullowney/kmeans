@@ -1,0 +1,71 @@
+#if !defined(_WRITE_RESULTS_HCU_)
+#define _WRITE_RESULTS_HCU_
+
+template<class TYPE, class VTYPE>
+__device__ __inline__ void _dev_writeResults(const int nRowsA, const int nColsB, int r, int c,
+						    const VTYPE Creg, TYPE * __restrict__ C) {
+  if (r<nRowsA) {
+    if (c<nColsB)
+      C[r*nColsB + c] = Creg.x;
+    if (c+TILESIZE<nColsB)
+      C[r*nColsB + c+TILESIZE] = Creg.y;
+  }
+}
+
+template<>
+__device__ __inline__ void _dev_writeResults(const int nRowsA, const int nColsB, int r, int c,
+						    const float3 Creg, float * __restrict__ C) {
+  if (r<nRowsA) {
+    if (c<nColsB)
+      C[r*nColsB + c] = Creg.x;
+    if (c+TILESIZE<nColsB)
+      C[r*nColsB + c+TILESIZE] = Creg.y;
+    if (c+2*TILESIZE<nColsB)
+      C[r*nColsB + c + 2*TILESIZE] = Creg.z;
+  }
+}
+
+template<>
+__device__ __inline__ void _dev_writeResults(const int nRowsA, const int nColsB, int r, int c,
+						    const double3 Creg, double * __restrict__ C) {
+  if (r<nRowsA) {
+    if (c<nColsB)
+      C[r*nColsB + c] = Creg.x;
+    if (c+TILESIZE<nColsB)
+      C[r*nColsB + c+TILESIZE] = Creg.y;
+    if (c+2*TILESIZE<nColsB)
+      C[r*nColsB + c + 2*TILESIZE] = Creg.z;
+  }
+}
+
+template<>
+__device__ __inline__ void _dev_writeResults(const int nRowsA, const int nColsB, int r, int c,
+						    const float4 Creg, float * __restrict__ C) {
+  if (r<nRowsA) {
+    if (c<nColsB)
+      C[r*nColsB + c] = Creg.x;
+    if (c+TILESIZE<nColsB)
+      C[r*nColsB + c+TILESIZE] = Creg.y;
+    if (c+2*TILESIZE<nColsB)
+      C[r*nColsB + c + 2*TILESIZE] = Creg.z;
+    if (c+3*TILESIZE<nColsB)
+      C[r*nColsB + c + 3*TILESIZE] = Creg.w;
+  }
+}
+
+template<>
+__device__ __inline__ void _dev_writeResults(const int nRowsA, const int nColsB, int r, int c,
+						    const double4 Creg, double * __restrict__ C) {
+  if (r<nRowsA) {
+    if (c<nColsB)
+      C[r*nColsB + c] = Creg.x;
+    if (c+TILESIZE<nColsB)
+      C[r*nColsB + c+TILESIZE] = Creg.y;
+    if (c+2*TILESIZE<nColsB)
+      C[r*nColsB + c + 2*TILESIZE] = Creg.z;
+    if (c+3*TILESIZE<nColsB)
+      C[r*nColsB + c + 3*TILESIZE] = Creg.w;
+  }
+}
+
+#endif /* !defined(_WRITE_RESULTS_HCU_) */

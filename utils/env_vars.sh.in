@@ -1,0 +1,11 @@
+#!/bin/bash
+export LD_LIBRARY_PATH=@CMAKE_INSTALL_PREFIX@/lib:$LD_LIBRARY_PATH
+export LD_LIBRARY_PATH=@CUDA_TOOLKIT_ROOT_DIR@/lib64:$LD_LIBRARY_PATH
+export LD_LIBRARY_PATH=@GDAL_INCLUDE_DIR@/../lib:$LD_LIBRARY_PATH
+export LD_LIBRARY_PATH=@CMAKE_LIBRARY_PATH@/:$LD_LIBRARY_PATH
+export LD_LIBRARY_PATH=@GTEST_INCLUDE_DIR@/../lib:$LD_LIBRARY_PATH
+
+export PATH=/mnt/panasas/pmullown/devel-debug/bin:$PATH
+export LD_LIBRARY_PATH=/mnt/panasas/pmullown/devel-debug/lib:$LD_LIBRARY_PATH
+# Python path
+export PYTHONPATH=/mnt/panasas/pmullown/devel-debug/lib/python2.7/site-packages

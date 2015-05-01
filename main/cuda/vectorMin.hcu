@@ -1,0 +1,72 @@
+#if !defined(_VECTOR_MIN_HCU_)
+#define _VECTOR_MIN_HCU_
+
+template<class TYPE, class VTYPE>
+__device__ __inline__ void vectorMin(VTYPE x, TYPE& xmin, int& index) {
+}
+
+template<>
+__device__ __inline__ void vectorMin(float2 x, float& xmin, int& index) {
+  if (x.y<x.x) { 
+    xmin = x.y;
+    index = 1;
+  } else {
+    xmin = x.x;
+    index = 0;
+  }
+}
+
+template<>
+__device__ __inline__ void vectorMin(double2 x, double& xmin, int& index) {
+  if (x.y<x.x) { 
+    xmin = x.y;
+    index = 1;
+  } else {
+    xmin = x.x;
+    index = 0;
+  }
+}
+
+template<>
+__device__ __inline__ void vectorMin(float4 x, float& xmin, int& index) {
+  int i1=2;
+  float xmin1=x.z;
+
+  xmin = x.x;
+  index = 0;
+  if (x.y<xmin) { 
+    xmin = x.y;
+    index = 1;
+  }
+  if (x.w<xmin1) { 
+    xmin1 = x.w;
+    i1 = 3;
+  }
+  if (xmin1<xmin) { 
+    xmin = xmin1;
+    index = i1;
+  } 
+}
+
+template<>
+__device__ __inline__ void vectorMin(double4 x, double& xmin, int& index) {
+  int i1=2;
+  double xmin1=x.z;
+
+  xmin = x.x;
+  index = 0;
+  if (x.y<xmin) { 
+    xmin = x.y;
+    index = 1;
+  }
+  if (x.w<xmin1) { 
+    xmin1 = x.w;
+    i1 = 3;
+  }
+  if (xmin1<xmin) { 
+    xmin = xmin1;
+    index = i1;
+  } 
+}
+
+#endif /* !defined(_VECTOR_MIN_HCU_) */
