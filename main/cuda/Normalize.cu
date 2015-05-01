@@ -56,7 +56,7 @@ DllExport kmeansCudaErrorStatus rowNormalize(const int m, const int n,
 }
 
 template<>
-DllExport kmeansCudaErrorStatus rowNormalize(const int m, const int n, 
+kmeansCudaErrorStatus rowNormalize(const int m, const int n, 
 				   const float * __restrict__ input, 
 				   float * __restrict__ output) {
   try {
@@ -78,7 +78,7 @@ DllExport kmeansCudaErrorStatus rowNormalize(const int m, const int n,
 
 
 template<>
-DllExport kmeansCudaErrorStatus rowNormalize(const int m, const int n, 
+kmeansCudaErrorStatus rowNormalize(const int m, const int n, 
 				   const double * __restrict__ input, 
 				   double * __restrict__ output) {
   try {
@@ -123,7 +123,7 @@ DllExport kmeansCudaErrorStatus colNormalize(const int m, const int n,
 }
 
 template<>
-DllExport kmeansCudaErrorStatus colNormalize(const int m, const int n, 
+kmeansCudaErrorStatus colNormalize(const int m, const int n, 
 					     const float * __restrict__ input, 
 					     float * __restrict__ output) {
   try {
@@ -144,7 +144,7 @@ DllExport kmeansCudaErrorStatus colNormalize(const int m, const int n,
 }
 
 template<>
-DllExport kmeansCudaErrorStatus colNormalize(const int m, const int n, 
+kmeansCudaErrorStatus colNormalize(const int m, const int n, 
 					     const double * __restrict__ input, 
 					     double * __restrict__ output) {
   try {

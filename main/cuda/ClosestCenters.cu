@@ -231,7 +231,7 @@ DllExport kmeansCudaErrorStatus ClosestCenters(const int nRowsA, const int nCols
 }
 
 template<>
-DllExport kmeansCudaErrorStatus ClosestCenters(const int nRowsA, const int nColsA, const float *A, 
+kmeansCudaErrorStatus ClosestCenters(const int nRowsA, const int nColsA, const float *A, 
 					       const int nColsB, const float *B, 
 					       const float * normRowsOfA_squared,
 					       const float * normColsOfB_squared,
@@ -248,7 +248,7 @@ DllExport kmeansCudaErrorStatus ClosestCenters(const int nRowsA, const int nCols
 
 
 template<>
-DllExport kmeansCudaErrorStatus ClosestCenters(const int nRowsA, const int nColsA, const double *A, 
+kmeansCudaErrorStatus ClosestCenters(const int nRowsA, const int nColsA, const double *A, 
 					       const int nColsB, const double *B, 
 					       const double * normRowsOfA_squared,
 					       const double * normColsOfB_squared,

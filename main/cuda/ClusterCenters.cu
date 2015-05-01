@@ -97,7 +97,7 @@ DllExport kmeansCudaErrorStatus ClusterCenters(const int m, const int n, const i
 
 /* Generic Templated interface to calling the CUDA kernel */
 template<>
-DllExport kmeansCudaErrorStatus ClusterCenters(const int m, const int n, const int k,
+kmeansCudaErrorStatus ClusterCenters(const int m, const int n, const int k,
 				     const float * data, const int * indices,
 				     float * centers_large, int * counts_large,
 				     float * centers, int * counts) {
@@ -128,7 +128,7 @@ DllExport kmeansCudaErrorStatus ClusterCenters(const int m, const int n, const i
 
 /* Generic Templated interface to calling the CUDA kernel */
 template<>
-DllExport kmeansCudaErrorStatus ClusterCenters(const int m, const int n, const int k,
+kmeansCudaErrorStatus ClusterCenters(const int m, const int n, const int k,
 				     const double * data, const int * indices,
 				     double * centers_large, int * counts_large,
 				     double * centers, int * counts) {
