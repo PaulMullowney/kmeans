@@ -30,7 +30,7 @@ TEST_F(KmeansTests, SIFT) {
   string fileName("mat-sift");
   int m = 898790;
   int n = 128;
-  int k = 512;
+  int k = 256;
   int nIters = 50;
   kmeansErrorStatus err = KMEANS_SUCCESS;
   int useCublas = 1;
@@ -69,7 +69,7 @@ TEST_F(KmeansTests, HOG) {
   string fileName("mat-hog");
   int m = 796160;
   int n = 324;
-  int k = 512;
+  int k = 256;
   int nIters = 50;
   kmeansErrorStatus err = KMEANS_SUCCESS;
   int useCublas = 1;
