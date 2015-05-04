@@ -18,8 +18,8 @@ import scikits.cuda.misc as cumisc
 import string
 
 from ctypes import *
-cdll.LoadLibrary("/home/paul/project/kmeans-gpu/lib/libCudaKernelLibrary.so")
-kmeansLib = CDLL("/home/paul/project/kmeans-gpu/lib/libCudaKernelLibrary.so")
+cdll.LoadLibrary("C:/Program Files/kmeans-gpu/lib/libCudaKernelLibrary.so")
+kmeansLib = CDLL("C:/Program Files/kmeans-gpu/lib/libCudaKernelLibrary.so")
 
 culinalg.init()
 

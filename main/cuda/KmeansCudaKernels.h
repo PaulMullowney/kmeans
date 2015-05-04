@@ -136,7 +136,8 @@ extern "C" {
    *  and then does a partial reduction on the output of the rows
    *  (single precision input/output).
    *
-   * @param nRowsA the number of rows in A
+   * @param m0 the starting data point in a compute tile
+   * @param nRowsA the number of rows in A (in a compute tile)
    * @param nColsA the number of columns in A
    * @param A a pointer to the left hand side matrix (C ordering)
    * @param nColsC the number of rows in C
@@ -150,19 +151,21 @@ extern "C" {
    *
    * @return an error status upon return
    */
-  DllExport kmeansCudaErrorStatus ClosestCentersF(const int nRowsA, const int nColsA, const float *A, 
-					const int nColsB, const float *B, 
-					const float * normRowsOfA_squared,
-					const float * normColsOfB_squared,
-					const int nColsC, float * C, int *Cindices,
-					int * CindicesFinal);
+  DllExport kmeansCudaErrorStatus ClosestCentersF(const int m0, const int nRowsA, 
+						  const int nColsA, const float *A, 
+						  const int nColsB, const float *B, 
+						  const float * normRowsOfA_squared,
+						  const float * normColsOfB_squared,
+						  const int nColsC, float * C, int *Cindices,
+						  int * CindicesFinal);
 
   /**
    * @brief Computes the BLAS 3 product A*B = C on the GPU 
    *  and then does a partial reduction on the output of the rows
    *  (double precision input/output).
    *
-   * @param nRowsA the number of rows in A
+   * @param m0 the starting data point in a compute tile
+   * @param nRowsA the number of rows in A (in a compute tile)
    * @param nColsA the number of columns in A
    * @param A a pointer to the left hand side matrix (C ordering)
    * @param nColsC the number of rows in C
@@ -176,20 +179,22 @@ extern "C" {
    *
    * @return an error status upon return
    */
-  DllExport kmeansCudaErrorStatus ClosestCentersD(const int nRowsA, const int nColsA, const double *A, 
-					const int nColsB, const double *B, 
-					const double * normRowsOfA_squared,
-					const double * normColsOfB_squared,
-					const int nColsC, double * C, int *Cindices,
-					int * CindicesFinal);
+  DllExport kmeansCudaErrorStatus ClosestCentersD(const int m0, const int nRowsA, 
+						  const int nColsA, const double *A, 
+						  const int nColsB, const double *B, 
+						  const double * normRowsOfA_squared,
+						  const double * normColsOfB_squared,
+						  const int nColsC, double * C, int *Cindices,
+						  int * CindicesFinal);
 
   /**
    * @brief In a given row i, computes
    *  min over j of : normRowsOfA_squared_i + normColsOfB_squared_j - 2*input_i,j
    *  and stores the resulting index in  the output (single precision input).
    *
-   * @param n the number of rows in the matrix
-   * @param k the number of columns in the matrix
+   * @param m0 the starting data point in a compute tile
+   * @param m the number of rows in the matrix
+   * @param n the dimensionality of each data instance
    * @param normRowsOfA_squared the L2 norm squared of the input matrix
    * @param normColsOfB_squared the L2 norm squared of the B matrix 
    * @param input the input matrix
@@ -197,18 +202,19 @@ extern "C" {
    *
    * @return an error status upon return
    */
-  DllExport kmeansCudaErrorStatus rowTransformMinimumF(const int n, const int k, 
-					     const float * normRowsOfA_squared, 
-					     const float * normColsOfB_squared, 
-					     const float * input, int * output);
+  DllExport kmeansCudaErrorStatus rowTransformMinimumF(const int m0, const int m, const int n, 
+						       const float * normRowsOfA_squared, 
+						       const float * normColsOfB_squared, 
+						       const float * input, int * output);
 
   /**
    * @brief In a given row i, computes
    *  min over j of : normRowsOfA_squared_i + normColsOfB_squared_j - 2*input_i,j
    *  and stores the resulting index in  the output (double precision input).
    *
-   * @param n the number of rows in the matrix
-   * @param k the number of columns in the matrix
+   * @param m0 the starting data point in a compute tile
+   * @param m the number of rows in the matrix
+   * @param n the dimensionality of each data instance
    * @param normRowsOfA_squared the L2 norm squared of the input matrix
    * @param normColsOfB_squared the L2 norm squared of the B matrix 
    * @param input the input matrix
@@ -216,19 +222,22 @@ extern "C" {
    *
    * @return an error status upon return
    */
-  DllExport kmeansCudaErrorStatus rowTransformMinimumD(const int n, const int k,
-					     const double * normRowsOfA_squared, 
-					     const double * normColsOfB_squared, 
-					     const double * input, int * output);
+  DllExport kmeansCudaErrorStatus rowTransformMinimumD(const int m0, const int m, const int n,
+						       const double * normRowsOfA_squared, 
+						       const double * normColsOfB_squared, 
+						       const double * input, int * output);
 
 
   /**
    * @brief computes the new cluster centers, given a index vector denoting
    *  the closest center for a given row vector. Single precision input/output.
    *
-   * @param m the number of data
+   * @param m0 the starting data point in a compute tile
+   * @param m the number of data in a compute tile
    * @param n the dimensionality of each data instance
    * @param k the number of cluster centers
+   * @param lastTile if true (we perform the final reduction to get the cluster centers)
+   *  on the last tile.
    * @param data the input data. A C-order matrix of dimension m x n.
    * @param indices a vector of length n storing the index of the closest center
    * @param centers_large a temporary data structure used in the reduction
@@ -240,19 +249,23 @@ extern "C" {
    *
    * @return an error status upon return
    */
-  DllExport kmeansCudaErrorStatus ClusterCentersF(const int m, const int n, const int k,
-					const float * data, const int * indices,
-					float * centers_large, int * counts_large,
-					float * centers, int * counts);
+  DllExport kmeansCudaErrorStatus ClusterCentersF(const int m0, const int m, const int n,
+						  const int k, const bool lastTile,
+						  const float * data, const int * indices,
+						  float * centers_large, int * counts_large,
+						  float * centers, int * counts);
 
 
   /**
    * @brief computes the new cluster centers, given a index vector denoting
    *  the closest center for a given row vector. Double precision input/output.
    *
-   * @param m the number of data
+   * @param m0 the starting data point in a compute tile
+   * @param m the number of data in a compute tile
    * @param n the dimensionality of each data instance
    * @param k the number of cluster centers
+   * @param lastTile if true (we perform the final reduction to get the cluster centers)
+   *  on the last tile.
    * @param data the input data. A C-order matrix of dimension m x n.
    * @param indices a vector of length n storing the index of the closest center
    * @param centers_large a temporary data structure used in the reduction
@@ -264,17 +277,19 @@ extern "C" {
    *
    * @return an error status upon return
    */
-  DllExport kmeansCudaErrorStatus ClusterCentersD(const int m, const int n, const int k,
-					const double * data, const int * indices,
-					double * centers_large, int * counts_large,
-					double * centers, int * counts);
+  DllExport kmeansCudaErrorStatus ClusterCentersD(const int m0, const int m, const int n,
+						  const int k, const bool lastTile,
+						  const double * data, const int * indices,
+						  double * centers_large, int * counts_large,
+						  double * centers, int * counts);
 
 
   /**
    * @brief computes the compactness based on the data, the new cluster centers, the 
    *  index of the closest center. Single precision input/output.
    *
-   * @param m the number of data
+   * @param m0 the starting data point in a compute tile
+   * @param m the number of data in a compute tile
    * @param n the dimensionality of each data instance
    * @param k the number of cluster centers
    * @param data the input data. A C-order matrix of dimension m x n.
@@ -282,20 +297,19 @@ extern "C" {
    * @param centers the cluster centers. a data structure of size n x k
    *  where each column represents a cluster center. C-ordered.
    * @param compactness the compactness of the data.
-   * @param compactness_cpu the compactness of the data ... on the cpu
    *
    * @return an error status upon return
    */
-  DllExport kmeansCudaErrorStatus CompactnessF(const int m, const int n, const int k,
-				     const float * data, const int * indices,
-				     const float * centers, float * compactness,
-				     float * compactness_cpu);
+  DllExport kmeansCudaErrorStatus CompactnessF(const int m0, const int m, const int n, const int k,
+					       const float * data, const int * indices,
+					       const float * centers, float * compactness);
   
   /**
    * @brief computes the compactness based on the data, the new cluster centers, the 
    *  index of the closest center. Double precision input/output.
    *
-   * @param m the number of data
+   * @param m0 the starting data point in a compute tile
+   * @param m the number of data in a compute tile
    * @param n the dimensionality of each data instance
    * @param k the number of cluster centers
    * @param data the input data. A C-order matrix of dimension m x n.
@@ -303,43 +317,43 @@ extern "C" {
    * @param centers the cluster centers. a data structure of size n x k
    *  where each column represents a cluster center. C-ordered.
    * @param compactness the compactness of the data.
-   * @param compactness_cpu the compactness of the data ... on the cpu
    *
    * @return an error status upon return
    */
-  DllExport kmeansCudaErrorStatus CompactnessD(const int m, const int n, const int k,
-				     const double * data, const int * indices,
-				     const double * centers, double * compactness,
-				     double * compactness_cpu);
+  DllExport kmeansCudaErrorStatus CompactnessD(const int m0, const int m, const int n, const int k,
+					       const double * data, const int * indices,
+					       const double * centers, double * compactness);
 
 
   /**
    * @brief Compute the L2 norm (squared) of each row. Single precision input/output.
    *
-   * @param m the number of rows in the matrix
-   * @param n the number of columns in the matrix
+   * @param m0 the starting data point in a compute tile
+   * @param m the number of data in a compute tile
+   * @param n the dimensionality of each data instance
    * @param input the input matrix
    * @param output the L2 norm squared of each row
    *
    * @return an error status upon return
    */
-	DllExport kmeansCudaErrorStatus rowNormalizeF(const int m, const int n, 
-				      const float * __restrict__ input, 
-				      float * __restrict__ output);
+  DllExport kmeansCudaErrorStatus rowNormalizeF(const int m0, const int m, const int n, 
+						const float * __restrict__ input, 
+						float * __restrict__ output);
   
   /**
    * @brief Compute the L2 norm (squared) of each row. Double precision input/output.
    *
-   * @param m the number of rows in the matrix
-   * @param n the number of columns in the matrix
+   * @param m0 the starting data point in a compute tile
+   * @param m the number of data in a compute tile
+   * @param n the dimensionality of each data instance
    * @param input the input matrix
    * @param output the L2 norm squared of each row
    *
    * @return an error status upon return
    */
-  DllExport kmeansCudaErrorStatus rowNormalizeD(const int m, const int n, 
-				      const double * __restrict__ input, 
-				      double * __restrict__ output);
+  DllExport kmeansCudaErrorStatus rowNormalizeD(const int m0, const int m, const int n, 
+						const double * __restrict__ input, 
+						double * __restrict__ output);
 
 
   /**
@@ -353,8 +367,8 @@ extern "C" {
    * @return an error status upon return
    */
   DllExport kmeansCudaErrorStatus colNormalizeF(const int m, const int n, 
-				      const float * __restrict__ input, 
-				      float * __restrict__ output);
+						const float * __restrict__ input, 
+						float * __restrict__ output);
   
   /**
    * @brief Compute the L2 norm (squared) of each col. Double precision input/output.
@@ -367,35 +381,37 @@ extern "C" {
    * @return an error status upon return
    */
   DllExport kmeansCudaErrorStatus colNormalizeD(const int m, const int n,
-				      const double * __restrict__ input, 
-				      double * __restrict__ output);
+						const double * __restrict__ input, 
+						double * __restrict__ output);
 
 #if defined(__cplusplus)
 }
 #endif /* __cplusplus */                         
 
 
-  /**
-   * @brief Computes the BLAS 3 product A*B = C on the GPU for
-   *  and then does a partial reduction on the output of the rows
-   *  Arbitrary TYPE.
-   *
-   * @param nRowsA the number of rows in A
-   * @param nColsA the number of columns in A
-   * @param A a pointer to the left hand side matrix (C ordering)
-   * @param nColsC the number of rows in C
-   * @param B a pointer to the right hand side matrix (C ordering)
-   * @param normRowsOfA_squared L2 norm squared of the rows of A
-   * @param normColsOfB_squared L2 norm squared of the columns of B
-   * @param the number of columns in the result data structure
-   * @param C a pointer to the result
-   * @param Cindices a pointer to the index associated with the partial result
-   * @param CindicesFinal a pointer to the index associated with the final result
-   *
-   * @return an error status upon return
-   */
+/**
+ * @brief Computes the BLAS 3 product A*B = C on the GPU for
+ *  and then does a partial reduction on the output of the rows
+ *  Arbitrary TYPE.
+ *
+ * @param m0 the starting data point in a compute tile
+ * @param nRowsA the number of rows in A
+ * @param nColsA the number of columns in A
+ * @param A a pointer to the left hand side matrix (C ordering)
+ * @param nColsC the number of rows in C
+ * @param B a pointer to the right hand side matrix (C ordering)
+ * @param normRowsOfA_squared L2 norm squared of the rows of A
+ * @param normColsOfB_squared L2 norm squared of the columns of B
+ * @param the number of columns in the result data structure
+ * @param C a pointer to the result
+ * @param Cindices a pointer to the index associated with the partial result
+ * @param CindicesFinal a pointer to the index associated with the final result
+ *
+ * @return an error status upon return
+ */
 template<class TYPE>
-DllExport kmeansCudaErrorStatus ClosestCenters(const int nRowsA, const int nColsA, const TYPE *A,
+DllExport kmeansCudaErrorStatus ClosestCenters(const int m0, const int nRowsA, 
+					       const int nColsA, const TYPE *A,
 					       const int nColsB, const TYPE *B, 
 					       const TYPE * normRowsOfA_squared,
 					       const TYPE * normColsOfB_squared,
@@ -406,9 +422,12 @@ DllExport kmeansCudaErrorStatus ClosestCenters(const int nRowsA, const int nCols
  * @brief computes the new cluster centers, given a index vector denoting
  *  the closest center for a given row vector. Arbitrary TYPE.
  *
- * @param m the number of data
+ * @param m0 the starting data point in a compute tile
+ * @param m the number of data in a compute tile
  * @param n the dimensionality of each data instance
  * @param k the number of cluster centers
+ * @param lastTile if true (we perform the final reduction to get the cluster centers)
+ *  on the last tile.
  * @param data the input data. A C-order matrix of dimension m x n.
  * @param indices a vector of length n storing the index of the closest center
  * @param centers_large a temporary data structure used in the reduction
@@ -421,7 +440,8 @@ DllExport kmeansCudaErrorStatus ClosestCenters(const int nRowsA, const int nCols
  * @return an error status upon return
  */
 template<class TYPE>
-DllExport kmeansCudaErrorStatus ClusterCenters(const int m, const int n, const int k,
+DllExport kmeansCudaErrorStatus ClusterCenters(const int m0, const int m, const int n,
+					       const int k, const bool lastTile,
 					       const TYPE * data, const int * indices,
 					       TYPE * centers_large, int * counts_large,
 					       TYPE * centers, int * counts);
@@ -430,7 +450,8 @@ DllExport kmeansCudaErrorStatus ClusterCenters(const int m, const int n, const i
  * @brief computes the compactness based on the data, the new cluster centers, the 
  *  index of the closest center. Arbitrary TYPE.
  *
- * @param m the number of data
+ * @param m0 the starting data point in a compute tile
+ * @param m the number of data in a compute tile
  * @param n the dimensionality of each data instance
  * @param k the number of cluster centers
  * @param data the input data. A C-order matrix of dimension m x n.
@@ -438,28 +459,27 @@ DllExport kmeansCudaErrorStatus ClusterCenters(const int m, const int n, const i
  * @param centers the cluster centers. a data structure of size n x k
  *  where each column represents a cluster center. C-ordered.
  * @param compactness the compactness of the data.
- * @param compactness_cpu the compactness of the data ... on the cpu
  *
  * @return an error status upon return
  */
 template<class TYPE>
-DllExport kmeansCudaErrorStatus Compactness(const int m, const int n, const int k,
+DllExport kmeansCudaErrorStatus Compactness(const int m0, const int m, const int n, const int k,
 					    const TYPE * data, const int * indices,
-					    const TYPE * centers, TYPE * compactness,
-					    TYPE * compactness_cpu);
+					    const TYPE * centers, TYPE * compactness);
 
 /**
  * @brief Compute the L2 norm (squared) of each row. Arbitrary TYPE.
  *
- * @param m the number of rows in the matrix
- * @param n the number of columns in the matrix
+ * @param m0 the starting data point in a compute tile
+ * @param m the number of data in a compute tile
+ * @param n the dimensionality of each data instance
  * @param input the input matrix
  * @param output the L2 norm squared of each row
  *
  * @return an error status upon return
  */
 template<class TYPE>
-DllExport kmeansCudaErrorStatus rowNormalize(const int m, const int n,
+DllExport kmeansCudaErrorStatus rowNormalize(const int m0, const int m, const int n,
 					     const TYPE * __restrict__ input, 
 					     TYPE * __restrict__ output);
 
@@ -477,6 +497,8 @@ template<class TYPE>
 DllExport kmeansCudaErrorStatus colNormalize(const int m, const int n,
 					     const TYPE * __restrict__ input, 
 					     TYPE * __restrict__ output);
+
+
 
 #define CUDA_SAFE_CALL(err,kmeans_err)  __cudaSafeCall(err, kmeans_err, __FILE__, __LINE__)
 inline void __cudaSafeCall(cudaError_t err, kmeansCudaErrorStatus kmeansError, const char *file, const int line) {

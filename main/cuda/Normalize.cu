@@ -1,7 +1,7 @@
 #include "KmeansCudaKernels.h"
 
 template<class TYPE, const int SHMEMSIZE>
-__global__ void _dev_rowNormalize(const int m, const int n, 
+__global__ void _dev_rowNormalize(const int m0, const int m, const int n, 
 				  const TYPE * __restrict__ input, 
 				  TYPE * __restrict__ output) {
 
@@ -25,7 +25,7 @@ __global__ void _dev_rowNormalize(const int m, const int n,
     }
 
     if (threadIdx.x==0)
-      output[i] = data[0];
+      output[m0+i] = data[0];
     __syncthreads();
   }
 }
@@ -49,14 +49,14 @@ __global__ void _dev_colNormalize(const int m, const int n,
 
 /* Generic Templated interface to calling the CUDA kernel */
 template<class TYPE>
-DllExport kmeansCudaErrorStatus rowNormalize(const int m, const int n, 
-				   const TYPE * __restrict__ input, 
-				   TYPE * __restrict__ output) {
+DllExport kmeansCudaErrorStatus rowNormalize(const int m0, const int m, const int n, 
+					     const TYPE * __restrict__ input, 
+					     TYPE * __restrict__ output) {
   return NO_ERROR;
 }
 
 template<>
-kmeansCudaErrorStatus rowNormalize(const int m, const int n, 
+kmeansCudaErrorStatus rowNormalize(const int m0, const int m, const int n, 
 				   const float * __restrict__ input, 
 				   float * __restrict__ output) {
   try {
@@ -67,7 +67,7 @@ kmeansCudaErrorStatus rowNormalize(const int m, const int n,
 					  cudaFuncCachePreferShared),ERROR_ROWNORMALIZE);
     CUDA_SAFE_CALL(cudaDeviceSetSharedMemConfig(cudaSharedMemBankSizeEightByte),ERROR_ROWNORMALIZE);
 
-    _dev_rowNormalize<float,nThreads><<<grid,block>>>(m,n,input,output);
+    _dev_rowNormalize<float,nThreads><<<grid,block>>>(m0,m,n,input,output);
     CUDA_SAFE_CALL(cudaGetLastError(),ERROR_ROWNORMALIZE);
 
   } catch (...) {
@@ -78,7 +78,7 @@ kmeansCudaErrorStatus rowNormalize(const int m, const int n,
 
 
 template<>
-kmeansCudaErrorStatus rowNormalize(const int m, const int n, 
+kmeansCudaErrorStatus rowNormalize(const int m0, const int m, const int n, 
 				   const double * __restrict__ input, 
 				   double * __restrict__ output) {
   try {
@@ -89,7 +89,7 @@ kmeansCudaErrorStatus rowNormalize(const int m, const int n,
 					  cudaFuncCachePreferShared),ERROR_ROWNORMALIZE);
     CUDA_SAFE_CALL(cudaDeviceSetSharedMemConfig(cudaSharedMemBankSizeEightByte),ERROR_ROWNORMALIZE);
 
-    _dev_rowNormalize<double,nThreads><<<grid,block>>>(m,n,input,output);
+    _dev_rowNormalize<double,nThreads><<<grid,block>>>(m0,m,n,input,output);
     CUDA_SAFE_CALL(cudaGetLastError(),ERROR_ROWNORMALIZE);
 
   } catch (...) {
@@ -100,17 +100,17 @@ kmeansCudaErrorStatus rowNormalize(const int m, const int n,
 
 
 /* Single precision C entry Point */
-kmeansCudaErrorStatus rowNormalizeF(const int m, const int n, 
+kmeansCudaErrorStatus rowNormalizeF(const int m0, const int m, const int n, 
 				    const float * __restrict__ input, 
 				    float * __restrict__ output) {
-  return rowNormalize<float>(m,n,input,output);
+  return rowNormalize<float>(m0,m,n,input,output);
 }
 
 /* Double precision C entry Point */
-kmeansCudaErrorStatus rowNormalizeD(const int m, const int n, 
+kmeansCudaErrorStatus rowNormalizeD(const int m0, const int m, const int n, 
 				    const double * __restrict__ input, 
 				    double * __restrict__ output) {
-  return rowNormalize<double>(m,n,input,output);
+  return rowNormalize<double>(m0,m,n,input,output);
 }
 
 

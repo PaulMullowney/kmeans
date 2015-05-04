@@ -45,7 +45,8 @@ extern "C" {
     KMEANS_ERROR_COMPUTE = 8, /**< error in compute */
     KMEANS_ERROR_MEMCPY = 9, /**< error in copying the data back to the host */
     KMEANS_ERROR_TILING = 10, /**< error in the tiling */
-    KMEANS_NONCONVERGENCE = 11, /**< algorithm did not converge */
+    KMEANS_ERROR_COPY_TILE = 11, /**< error copying a tile of data to the device */
+    KMEANS_NONCONVERGENCE = 12, /**< algorithm did not converge */
   };
 
   /**
@@ -243,12 +244,33 @@ public:
    *
    * @return an error status denoting success or failure
    */
-  kmeansErrorStatus computeTiling();
+  virtual kmeansErrorStatus computeTiling();
+
+  /**
+   * @brief copy the current tile to the device
+   *
+   * @return an error status denoting success or failure
+   */
+  virtual kmeansErrorStatus copyTileToDevice();
 
 protected:
 
 private:
 
+  /**
+   * the current tile being processed.
+   */
+  int iTile;
+
+  /**
+   * whether or not the current tile is the last tile to be processed
+   */
+  bool lastTile;
+
+  /**
+   * whether or not the entire data set is on the device
+   */
+  bool entireDatasetIsOnDevice;
 
   /**
    * the number of tiles required to fit the computation in device memory
@@ -259,6 +281,18 @@ private:
    * the number of rows in a tile
    */
   int mChunk;
+
+  /**
+   * the starting row in the matrix for the ClosestCenter, ClusterCenters and
+   * Compactness calculations
+   */
+  vector<int> mStart;
+
+  /**
+   * the number of row to compute for the ClosestCenter, ClusterCenters and
+   * Compactness calculations
+   */
+  vector<int> mTile;
 
   /**
    * whether or not the constant memory has been set
@@ -284,6 +318,11 @@ private:
    * stop timer
    */
   cudaEvent_t stop;
+
+  /**
+   * timer
+   */
+  float dtCopy;
 
   /**
    * timer
@@ -354,6 +393,11 @@ private:
    * The number of columns in the partial reduction data structure
    */
   int p;
+
+  /**
+   * A device array of size m x n containing the input data
+   */
+  const TYPE * host_data;
 
   /**
    * A device array of size m x n containing the input data

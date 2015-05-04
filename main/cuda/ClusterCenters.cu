@@ -1,7 +1,8 @@
 #include "KmeansCudaKernels.h"
 
 template<class TYPE>
-__global__ void _dev_ClusterCentersBegin(const int m, const int n, const int k,
+__global__ void _dev_ClusterCentersBegin(const int m0, const int m,
+					 const int n, const int k,
 					 const TYPE * __restrict__ data,
 					 const int * __restrict__ indices,
 					 TYPE * __restrict__ centers, 
@@ -10,7 +11,7 @@ __global__ void _dev_ClusterCentersBegin(const int m, const int n, const int k,
   __shared__ int ind;
   for (int i=blockIdx.x; i<m; i+=gridDim.x) {
     if (threadIdx.x==0) {
-      ind = indices[i];
+      ind = indices[m0+i];
       counts[blockIdx.x*k + ind]++;
     }
     __syncthreads();
@@ -44,7 +45,7 @@ public:
 };
 
 template<class TYPE>
-__global__ void _dev_ClusterCentersEnd(const int m, const int n, const int k,
+__global__ void _dev_ClusterCentersEnd(const int p, const int n, const int k,
 				       const TYPE * __restrict__ centers_large, 
 				       const int * __restrict__ counts_large,
 				       TYPE * __restrict__ centers, 
@@ -65,7 +66,7 @@ __global__ void _dev_ClusterCentersEnd(const int m, const int n, const int k,
   }
   __syncthreads();
 
-  for (int i=0; i<m; ++i) {    
+  for (int i=0; i<p; ++i) {    
     for (tidx=threadIdx.x; tidx<n; tidx+=blockDim.x) 
       center[tidx] += centers_large[i*n*k + blockIdx.x*n + tidx];    
 
@@ -77,7 +78,7 @@ __global__ void _dev_ClusterCentersEnd(const int m, const int n, const int k,
   tidx = threadIdx.x;
   while (tidx<n) {
     //centers[tidx*k + blockIdx.x] = center[tidx]/(*count);
-	centers[blockIdx.x*n + tidx] = center[tidx]/(*count);
+    centers[blockIdx.x*n + tidx] = center[tidx]/(*count);
     tidx+=blockDim.x;
   }    
   if (threadIdx.x==0){
@@ -87,17 +88,19 @@ __global__ void _dev_ClusterCentersEnd(const int m, const int n, const int k,
 
 /* Generic Templated interface to calling the CUDA kernel */
 template<class TYPE>
-DllExport kmeansCudaErrorStatus ClusterCenters(const int m, const int n, const int k,
-				     const TYPE * data, const int * indices,
-				     TYPE * centers_large, int * counts_large,
-				     TYPE * centers, int * counts) {
+DllExport kmeansCudaErrorStatus ClusterCenters(const int m0, const int m,
+					       const int n, const int k, const bool lastTile,
+					       const TYPE * data, const int * indices,
+					       TYPE * centers_large, int * counts_large,
+					       TYPE * centers, int * counts) {
   
   return NO_ERROR;
 }
 
 /* Generic Templated interface to calling the CUDA kernel */
 template<>
-kmeansCudaErrorStatus ClusterCenters(const int m, const int n, const int k,
+kmeansCudaErrorStatus ClusterCenters(const int m0, const int m,
+				     const int n, const int k, const bool lastTile,
 				     const float * data, const int * indices,
 				     float * centers_large, int * counts_large,
 				     float * centers, int * counts) {
@@ -111,15 +114,17 @@ kmeansCudaErrorStatus ClusterCenters(const int m, const int n, const int k,
     CUDA_SAFE_CALL(cudaDeviceSetSharedMemConfig(cudaSharedMemBankSizeFourByte),ERROR_CLUSTERCENTERS);
     CUDA_SAFE_CALL(cudaFuncSetCacheConfig(_dev_ClusterCentersBegin<float>, cudaFuncCachePreferShared),ERROR_CLUSTERCENTERS);
 
-    _dev_ClusterCentersBegin<float><<<grid,block>>>(m,n,k,data,indices,centers_large,counts_large);
+    _dev_ClusterCentersBegin<float><<<grid,block>>>(m0,m,n,k,data,indices,centers_large,counts_large);
     CUDA_SAFE_CALL(cudaGetLastError(),ERROR_CLUSTERCENTERS);
 
     CUDA_SAFE_CALL(cudaFuncSetCacheConfig(_dev_ClusterCentersEnd<float>, cudaFuncCachePreferShared),ERROR_CLUSTERCENTERS);
 
-    grid = dim3(k, 1, 1);
-    block = dim3(nThreads,1,1);
-    _dev_ClusterCentersEnd<float><<<grid,block,shmemBytes>>>(getMaxConcurrentBlocks(),n,k,centers_large,counts_large,centers,counts);    
-    CUDA_SAFE_CALL(cudaGetLastError(),ERROR_CLUSTERCENTERS);
+    if (lastTile) {
+      grid = dim3(k, 1, 1);
+      block = dim3(nThreads,1,1);
+      _dev_ClusterCentersEnd<float><<<grid,block,shmemBytes>>>(getMaxConcurrentBlocks(),n,k,centers_large,counts_large,centers,counts);    
+      CUDA_SAFE_CALL(cudaGetLastError(),ERROR_CLUSTERCENTERS);
+    }
   } catch (...) {
     return ERROR_CLUSTERCENTERS;
   }
@@ -128,7 +133,8 @@ kmeansCudaErrorStatus ClusterCenters(const int m, const int n, const int k,
 
 /* Generic Templated interface to calling the CUDA kernel */
 template<>
-kmeansCudaErrorStatus ClusterCenters(const int m, const int n, const int k,
+kmeansCudaErrorStatus ClusterCenters(const int m0, const int m,
+				     const int n, const int k, const bool lastTile,
 				     const double * data, const int * indices,
 				     double * centers_large, int * counts_large,
 				     double * centers, int * counts) {
@@ -142,15 +148,17 @@ kmeansCudaErrorStatus ClusterCenters(const int m, const int n, const int k,
     CUDA_SAFE_CALL(cudaDeviceSetSharedMemConfig(cudaSharedMemBankSizeFourByte),ERROR_CLUSTERCENTERS);
     CUDA_SAFE_CALL(cudaFuncSetCacheConfig(_dev_ClusterCentersBegin<double>, cudaFuncCachePreferShared),ERROR_CLUSTERCENTERS);
 
-    _dev_ClusterCentersBegin<double><<<grid,block>>>(m,n,k,data,indices,centers_large,counts_large);
+    _dev_ClusterCentersBegin<double><<<grid,block>>>(m0,m,n,k,data,indices,centers_large,counts_large);
     CUDA_SAFE_CALL(cudaGetLastError(),ERROR_CLUSTERCENTERS);
 
     CUDA_SAFE_CALL(cudaFuncSetCacheConfig(_dev_ClusterCentersEnd<double>, cudaFuncCachePreferShared),ERROR_CLUSTERCENTERS);
 
-    grid = dim3(k, 1, 1);
-    block = dim3(nThreads,1,1);
-    _dev_ClusterCentersEnd<double><<<grid,block,shmemBytes>>>(getMaxConcurrentBlocks(),n,k,centers_large,counts_large,centers,counts);    
-    CUDA_SAFE_CALL(cudaGetLastError(),ERROR_CLUSTERCENTERS);
+    if (lastTile) {
+      grid = dim3(k, 1, 1);
+      block = dim3(nThreads,1,1);
+      _dev_ClusterCentersEnd<double><<<grid,block,shmemBytes>>>(getMaxConcurrentBlocks(),n,k,centers_large,counts_large,centers,counts);    
+      CUDA_SAFE_CALL(cudaGetLastError(),ERROR_CLUSTERCENTERS);
+    }
   } catch (...) {
     return ERROR_CLUSTERCENTERS;
   }
@@ -158,21 +166,23 @@ kmeansCudaErrorStatus ClusterCenters(const int m, const int n, const int k,
 }
 
 /* Single precision C entry Point */
-kmeansCudaErrorStatus ClusterCentersF(const int m, const int n, const int k,
+kmeansCudaErrorStatus ClusterCentersF(const int m0, const int m,
+				      const int n, const int k, const bool lastTile,
 				      const float * data, const int * indices,
 				      float * centers_large, int * counts_large,
 				      float * centers, int * counts) {
   
-  return ClusterCenters<float>(m,n,k,data,indices,centers_large,
+  return ClusterCenters<float>(m0,m,n,k,lastTile,data,indices,centers_large,
 			       counts_large,centers,counts);
 }
 
 /* Double precision C entry Point */
-kmeansCudaErrorStatus ClusterCentersD(const int m, const int n, const int k,
+kmeansCudaErrorStatus ClusterCentersD(const int m0, const int m,
+				      const int n, const int k, const bool lastTile,
 				      const double * data, const int * indices,
 				      double * centers_large, int * counts_large,
 				      double * centers, int * counts) {
   
-  return ClusterCenters<double>(m,n,k,data,indices,centers_large,
+  return ClusterCenters<double>(m0,m,n,k,lastTile,data,indices,centers_large,
 				counts_large,centers,counts);
 }

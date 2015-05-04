@@ -61,7 +61,6 @@ __global__ void _dev_ClosestCentersBegin(const TYPE * __restrict__ A, const TYPE
   }
 }
 
-#if 1
 __host__ __device__ static __inline__ int nextPowerOfTwo(int v) {
   v--;
   v |= v >> 1;
@@ -72,10 +71,9 @@ __host__ __device__ static __inline__ int nextPowerOfTwo(int v) {
   v++;
   return v;
 }
-#endif
 
 template<class TYPE, const int SHMEMSIZE>
-__global__ void _dev_ClosestCentersEnd(const int n, const int k, const int SHIFT,
+__global__ void _dev_ClosestCentersEnd(const int m0, const int n, const int k, const int SHIFT,
 				       const TYPE * __restrict__ C,
 				       const int * __restrict__ Cindices,
 				       int * __restrict__ CindicesFinal) {
@@ -114,15 +112,15 @@ __global__ void _dev_ClosestCentersEnd(const int n, const int k, const int SHIFT
       shift >>= 1;
     }
     if (threadIdx.x==0)
-      CindicesFinal[i] = index[0];
+      CindicesFinal[m0 + i] = index[0];
     __syncthreads();
   }  
 }
 
 /* Generic Templated interface to calling the CUDA kernel */
 template<class TYPE, class VTYPE,  const int N_UNROLL>
-kmeansCudaErrorStatus ClosestCenters(const int nRowsA, const int nColsA, const TYPE *A, 
-				     const int nColsB, const TYPE *B, 
+kmeansCudaErrorStatus ClosestCenters(const int m0, const int nRowsA, const int nColsA,
+				     const TYPE *A, const int nColsB, const TYPE *B, 
 				     const TYPE * normRowsOfA_squared,
 				     const TYPE * normColsOfB_squared,
 				     const int nColsC, TYPE * C, int *Cindices,
@@ -209,7 +207,7 @@ kmeansCudaErrorStatus ClosestCenters(const int nRowsA, const int nColsA, const T
     int shift = nextPowerOfTwo(nColsC);
     //CUDA_SAFE_CALL(cudaFuncSetCacheConfig(_dev_ClosestCentersEnd<TYPE,nThreads>,
     //					  cudaFuncCachePreferShared),ERROR_CLOSESTCENTERS);
-    _dev_ClosestCentersEnd<TYPE,nThreads><<<grid,block>>>(nRowsA,nColsC,shift,C,Cindices,CindicesFinal);
+    _dev_ClosestCentersEnd<TYPE,nThreads><<<grid,block>>>(m0,nRowsA,nColsC,shift,C,Cindices,CindicesFinal);
     
     CUDA_SAFE_CALL(cudaGetLastError(),ERROR_CLOSESTCENTERS);
   } catch (...) {
@@ -221,8 +219,8 @@ kmeansCudaErrorStatus ClosestCenters(const int nRowsA, const int nColsA, const T
 
 /* Generic Templated interface to calling the CUDA kernel */
 template<class TYPE>
-DllExport kmeansCudaErrorStatus ClosestCenters(const int nRowsA, const int nColsA, const TYPE *A, 
-					       const int nColsB, const TYPE *B, 
+DllExport kmeansCudaErrorStatus ClosestCenters(const int m0, const int nRowsA, const int nColsA,
+					       const TYPE *A, const int nColsB, const TYPE *B, 
 					       const TYPE * normRowsOfA_squared,
 					       const TYPE * normColsOfB_squared,
 					       const int nColsC, TYPE * C, int *Cindices,
@@ -231,42 +229,38 @@ DllExport kmeansCudaErrorStatus ClosestCenters(const int nRowsA, const int nCols
 }
 
 template<>
-kmeansCudaErrorStatus ClosestCenters(const int nRowsA, const int nColsA, const float *A, 
-					       const int nColsB, const float *B, 
-					       const float * normRowsOfA_squared,
-					       const float * normColsOfB_squared,
-					       const int nColsC, float * C, int *Cindices,
-					       int * CindicesFinal, bool& constantMemSet) {
+kmeansCudaErrorStatus ClosestCenters(const int m0, const int nRowsA, const int nColsA,
+				     const float *A, const int nColsB, const float *B, 
+				     const float * normRowsOfA_squared,
+				     const float * normColsOfB_squared,
+				     const int nColsC, float * C, int *Cindices,
+				     int * CindicesFinal, bool& constantMemSet) {
 
-  return ClosestCenters<float,FVECTOR,N_UNROLL_FLOAT>(nRowsA,nColsA,(const float *)A,
-						     nColsB,(const float *)B,
-						     (const float *)normRowsOfA_squared,
-						     (const float *)normColsOfB_squared,
-						     nColsC,(float *)C,Cindices,CindicesFinal,
-							constantMemSet);
+  return ClosestCenters<float,FVECTOR,N_UNROLL_FLOAT>
+    (m0,nRowsA,nColsA,(const float *)A, nColsB,(const float *)B,
+     (const float *)normRowsOfA_squared, (const float *)normColsOfB_squared,
+     nColsC,(float *)C,Cindices,CindicesFinal, constantMemSet);
 }
 
 
 template<>
-kmeansCudaErrorStatus ClosestCenters(const int nRowsA, const int nColsA, const double *A, 
-					       const int nColsB, const double *B, 
-					       const double * normRowsOfA_squared,
-					       const double * normColsOfB_squared,
-					       const int nColsC, double * C, int *Cindices,
-					       int * CindicesFinal, bool& constantMemSet) {
-
-  return ClosestCenters<double,DVECTOR,N_UNROLL_DOUBLE>(nRowsA,nColsA,(const double *)A,
-							nColsB,(const double *)B,
-							(const double *)normRowsOfA_squared,
-							(const double *)normColsOfB_squared,
-							nColsC,(double *)C,Cindices,CindicesFinal,
-							constantMemSet);
+kmeansCudaErrorStatus ClosestCenters(const int m0, const int nRowsA, const int nColsA,
+				     const double *A, const int nColsB, const double *B, 
+				     const double * normRowsOfA_squared,
+				     const double * normColsOfB_squared,
+				     const int nColsC, double * C, int *Cindices,
+				     int * CindicesFinal, bool& constantMemSet) {
+  
+  return ClosestCenters<double,DVECTOR,N_UNROLL_DOUBLE>
+    (m0,nRowsA,nColsA,(const double *)A, nColsB,(const double *)B,
+     (const double *)normRowsOfA_squared, (const double *)normColsOfB_squared,
+     nColsC,(double *)C,Cindices,CindicesFinal, constantMemSet);
 }
 
 
 
 /* Single precision C entry Point */
-kmeansCudaErrorStatus ClosestCentersF(const int nRowsA, const int nColsA, const float *A, 
+kmeansCudaErrorStatus ClosestCentersF(const int m0, const int nRowsA, const int nColsA, const float *A, 
 				      const int nColsB, const float *B, 
 				      const float * normRowsOfA_squared,
 				      const float * normColsOfB_squared,
@@ -274,12 +268,13 @@ kmeansCudaErrorStatus ClosestCentersF(const int nRowsA, const int nColsA, const 
 				      int * CindicesFinal) {
   
   bool constantMemSet = false;
-  return ClosestCenters<float,FVECTOR,N_UNROLL_FLOAT>(nRowsA,nColsA,A,nColsB,B,normRowsOfA_squared,
-						      normColsOfB_squared,nColsC,C,Cindices,CindicesFinal, constantMemSet);
+  return ClosestCenters<float,FVECTOR,N_UNROLL_FLOAT>
+    (m0,nRowsA,nColsA,A,nColsB,B,normRowsOfA_squared,
+     normColsOfB_squared,nColsC,C,Cindices,CindicesFinal, constantMemSet);
 }
 
 /* Double precision C entry Point */
-kmeansCudaErrorStatus ClosestCentersD(const int nRowsA, const int nColsA, const double *A, 
+kmeansCudaErrorStatus ClosestCentersD(const int m0, const int nRowsA, const int nColsA, const double *A, 
 				      const int nColsB, const double *B, 
 				      const double * normRowsOfA_squared,
 				      const double * normColsOfB_squared,
@@ -287,6 +282,7 @@ kmeansCudaErrorStatus ClosestCentersD(const int nRowsA, const int nColsA, const 
 				      int * CindicesFinal) {
 
   bool constantMemSet = false;
-  return ClosestCenters<double,DVECTOR,N_UNROLL_DOUBLE>(nRowsA,nColsA,A,nColsB,B,normRowsOfA_squared,
-  							normColsOfB_squared,nColsC,C,Cindices,CindicesFinal, constantMemSet);
+  return ClosestCenters<double,DVECTOR,N_UNROLL_DOUBLE>
+    (m0,nRowsA,nColsA,A,nColsB,B,normRowsOfA_squared,
+     normColsOfB_squared,nColsC,C,Cindices,CindicesFinal, constantMemSet);
 }

@@ -16,11 +16,11 @@ import numpy as np
 import string
 
 from ctypes import *
-cdll.LoadLibrary("/home/paul/project/kmeans-gpu/lib/libCudaKernelLibrary.so")
-cudaLib = CDLL("/home/paul/project/kmeans-gpu/lib/libCudaKernelLibrary.so")
+cdll.LoadLibrary("C:/Program Files/kmeans-gpu/lib/libCudaKernelLibrary.so")
+cudaLib = CDLL("C:/Program Files/kmeans-gpu/lib/libCudaKernelLibrary.so")
 
-cdll.LoadLibrary("/home/paul/project/kmeans-gpu/lib/libkmeans.so")
-kmeansLib = CDLL("/home/paul/project/kmeans-gpu/lib/libkmeans.so")
+cdll.LoadLibrary("C:/Program Files/kmeans-gpu/lib/libkmeans.so")
+kmeansLib = CDLL("C:/Program Files/kmeans-gpu/lib/libkmeans.so")
 
 # Double precision is only supported by devices with compute
 # capability >= 1.3:

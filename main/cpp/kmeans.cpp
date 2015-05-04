@@ -36,6 +36,8 @@ kmeans<TYPE>::kmeans(const int m, const int n, const int k,
   else this->useCUBLAS = false;
   
   this->constantMemSet = false;
+
+  this->entireDatasetIsOnDevice = false;
   
   /* timing data */
   this->dtClosestCenters = 0.f;
@@ -43,23 +45,25 @@ kmeans<TYPE>::kmeans(const int m, const int n, const int k,
   this->dtCompactness = 0.f;
   this->dtTranspose = 0.f;
   this->dtReset = 0.f;
+  this->dtCopy = 0.f;
   this->start = NULL;
   this->stop = NULL;
 
   /* set the pointers to NULL */
-  dev_data = NULL;
-  dev_mmMult = NULL;
-  dev_data_norm_squared = NULL;
-  dev_partial_reduction = NULL;
-  dev_partial_reduction_indices = NULL;
-  dev_ccindex = NULL;
-  dev_centers = NULL;
-  dev_centers_transpose = NULL;
-  dev_centers_large = NULL;
-  dev_centers_norm_squared = NULL;
-  dev_counts = NULL;
-  dev_counts_large = NULL;
-  dev_compactness = NULL;
+  this->host_data = NULL;
+  this->dev_data = NULL;
+  this->dev_mmMult = NULL;
+  this->dev_data_norm_squared = NULL;
+  this->dev_partial_reduction = NULL;
+  this->dev_partial_reduction_indices = NULL;
+  this->dev_ccindex = NULL;
+  this->dev_centers = NULL;
+  this->dev_centers_transpose = NULL;
+  this->dev_centers_large = NULL;
+  this->dev_centers_norm_squared = NULL;
+  this->dev_counts = NULL;
+  this->dev_counts_large = NULL;
+  this->dev_compactness = NULL;
 
   int dev;
   cudaGetDevice(&dev);
@@ -241,7 +245,7 @@ kmeansErrorStatus kmeans<TYPE>::computeTiling() {
     /* the boundaries of the tiles must be a multiple of factor */
     uint64_t requiredMemory = fixedMemory + varMemoryArray + varMemoryMMResult;
     
-  /* we will attempt to use at most 95% of the free memory */
+    /* we will attempt to use at most 95% of the free memory */
     this->nTiles = 1;
     this->mChunk = (this->m + this->nTiles - 1)/this->nTiles;
     
@@ -253,10 +257,10 @@ kmeansErrorStatus kmeans<TYPE>::computeTiling() {
       this->mChunk = (this->m + this->nTiles - 1)/this->nTiles;
       this->m_padded = ((this->mChunk + this->factor - 1) / this->factor)*this->factor;
       
-    /* update the memory requirements */
+      /* update the memory requirements */
       if (useCUBLAS) {
-	varMemoryArray = (uint64_t) (this->mChunk * this->n * sizeof(TYPE));
-	varMemoryMMResult = (uint64_t) (this->mChunk * this->k * sizeof(TYPE));
+	varMemoryArray = (uint64_t) (this->m_padded * this->n * sizeof(TYPE));
+	varMemoryMMResult = (uint64_t) (this->m_padded * this->k * sizeof(TYPE));
       } else {
 	varMemoryArray = (uint64_t) (this->m_padded * this->n * sizeof(TYPE));
 	varMemoryMMResult = (uint64_t) (this->m_padded * this->p * sizeof(TYPE));
@@ -265,6 +269,21 @@ kmeansErrorStatus kmeans<TYPE>::computeTiling() {
       
       /* calculate the new required memory */
       requiredMemory = fixedMemory + varMemoryArray + varMemoryMMResult;
+    }
+
+    /* determine the tile start positions and the number of rows to compute in a tile */
+    this->mTile.resize(this->nTiles);
+    fill(this->mTile.begin(), this->mTile.end(), this->m_padded);
+    this->mTile.back() = this->m - (this->nTiles-1)*this->m_padded;
+
+    this->mStart.resize(this->nTiles);
+    fill(this->mStart.begin(), this->mStart.end(), 0); 
+    for (int i=1; i<this->nTiles; ++i)
+      this->mStart[i] = this->mStart[i-1] + this->mTile[i-1];
+
+    for (int i=0; i<this->nTiles; ++i) {
+      cout << i+1 << "/" << this->nTiles << " " << this->mStart[i] << " " 
+	   << this->mTile[i] << " " << this->mStart[i] + this->mTile[i] << endl;
     }
     return KMEANS_SUCCESS;
   }
@@ -278,6 +297,9 @@ template<class TYPE>
 kmeansErrorStatus kmeans<TYPE>::buildData(const TYPE * data) {
 
   try {
+    /* assign the pointer to the host data */
+    this->host_data = data;
+    
     /*******************/
     /* allocate timers */
     /*******************/
@@ -340,15 +362,15 @@ kmeansErrorStatus kmeans<TYPE>::buildData(const TYPE * data) {
     /* allocate space for the result of the matrix matrix multiply */
     if (this->useCUBLAS) {
       /* input data */
-      nBytes = this->m * this->n * sizeof(TYPE);
+      nBytes = this->m_padded * this->n * sizeof(TYPE);
       CUDA_API_SAFE_CALL(cudaMalloc((void**)&(this->dev_data), nBytes), KMEANS_ERROR_BUILDDATA);
       CUDA_API_SAFE_CALL(cudaMemset(this->dev_data, 0, nBytes), KMEANS_ERROR_BUILDDATA);
       
-      nBytes = this->m * this->n * sizeof(TYPE);
-      CUDA_API_SAFE_CALL(cudaMemcpy(this->dev_data, data, nBytes, cudaMemcpyHostToDevice), KMEANS_ERROR_BUILDDATA);
+      //nBytes = this->m * this->n * sizeof(TYPE);
+      //CUDA_API_SAFE_CALL(cudaMemcpy(this->dev_data, data, nBytes, cudaMemcpyHostToDevice), KMEANS_ERROR_BUILDDATA);
 
       /* matrix matrix multiply buffer */
-      nBytes = this->m * this->k * sizeof(TYPE);
+      nBytes = this->m_padded * this->k * sizeof(TYPE);
       CUDA_API_SAFE_CALL(cudaMalloc((void**)&(this->dev_mmMult), nBytes), KMEANS_ERROR_BUILDDATA);
       CUDA_API_SAFE_CALL(cudaMemset(dev_mmMult, 0, nBytes), KMEANS_ERROR_BUILDDATA);
     } else {
@@ -357,16 +379,16 @@ kmeansErrorStatus kmeans<TYPE>::buildData(const TYPE * data) {
       CUDA_API_SAFE_CALL(cudaMalloc((void**)&(this->dev_data), nBytes), KMEANS_ERROR_BUILDDATA);
       CUDA_API_SAFE_CALL(cudaMemset(this->dev_data, 0, nBytes), KMEANS_ERROR_BUILDDATA);
       
-      nBytes = this->m * this->n * sizeof(TYPE);
-      CUDA_API_SAFE_CALL(cudaMemcpy(this->dev_data, data, nBytes, cudaMemcpyHostToDevice), KMEANS_ERROR_BUILDDATA);
+      //nBytes = this->m * this->n * sizeof(TYPE);
+      //CUDA_API_SAFE_CALL(cudaMemcpy(this->dev_data, data, nBytes, cudaMemcpyHostToDevice), KMEANS_ERROR_BUILDDATA);
 
       /* the partial reduction array */
-      nBytes = this->m * this->p * sizeof(TYPE);
+      nBytes = this->m_padded * this->p * sizeof(TYPE);
       CUDA_API_SAFE_CALL(cudaMalloc((void**)&(this->dev_partial_reduction), nBytes), KMEANS_ERROR_BUILDDATA);
       CUDA_API_SAFE_CALL(cudaMemset(this->dev_partial_reduction, 0, nBytes), KMEANS_ERROR_BUILDDATA);
       
       /* the partial reduction array indices */
-      nBytes = this->m * this->p * sizeof(int);
+      nBytes = this->m_padded * this->p * sizeof(int);
       CUDA_API_SAFE_CALL(cudaMalloc((void**)&(this->dev_partial_reduction_indices), nBytes), KMEANS_ERROR_BUILDDATA);
       CUDA_API_SAFE_CALL(cudaMemset(this->dev_partial_reduction_indices, 0, nBytes), KMEANS_ERROR_BUILDDATA);
     }
@@ -378,16 +400,47 @@ kmeansErrorStatus kmeans<TYPE>::buildData(const TYPE * data) {
   }
 }
 
+
+/* copy a tile to the device */
+template<class TYPE>
+kmeansErrorStatus kmeans<TYPE>::copyTileToDevice() {
+  
+  try {
+    /* copy a chunk of the rows to the device */
+    if (!this->entireDatasetIsOnDevice) {
+      const TYPE * src = this->host_data + this->mStart[this->iTile]*this->n;
+      int nBytes = this->mTile[this->iTile]*this->n*sizeof(TYPE);
+      CUDA_API_SAFE_CALL(cudaMemcpy(this->dev_data,src,nBytes,cudaMemcpyHostToDevice),
+			 KMEANS_ERROR_COPY_TILE);
+    }
+    if (this->nTiles==1) this->entireDatasetIsOnDevice=true;
+    return KMEANS_SUCCESS;
+  }
+  catch (...) {
+    return KMEANS_ERROR_COPY_TILE;
+  }   
+}
+
 /* initialize */
 template<class TYPE>
 kmeansErrorStatus kmeans<TYPE>::initialize(const TYPE * data, TYPE * result) {
+
   try {
     kmeansCudaErrorStatus err = NO_ERROR;
+    kmeansErrorStatus errK = KMEANS_SUCCESS;
 
     /* normalize the input data */
-    err = rowNormalize<TYPE>(this->m, this->n, this->dev_data,
-			     this->dev_data_norm_squared);
-    if (err != NO_ERROR) return KMEANS_ERROR_INITIALIZE;
+    for (int i=0; i<this->nTiles; ++i) {
+      /* copy a chunk of the rows to the device */
+      this->iTile = i;
+      errK = this->copyTileToDevice();
+      if (errK != KMEANS_SUCCESS) return KMEANS_ERROR_INITIALIZE;
+
+      /* compute the row normalization */
+      err = rowNormalize<TYPE>(this->mStart[this->iTile], this->mTile[this->iTile], this->n,
+			       this->dev_data, this->dev_data_norm_squared);
+      if (err != NO_ERROR) return KMEANS_ERROR_INITIALIZE;
+    }
 
     /* initialize the cluster centers */
     vector<int> points(0);
@@ -454,13 +507,13 @@ kmeansErrorStatus kmeans<TYPE>::closestCenters() {
     TYPE zero = 0.0;
     if (sizeof(TYPE) == 4) {
       CUBLAS_API_SAFE_CALL(cublasSgemm(this->handle, CUBLAS_OP_N, CUBLAS_OP_N,
-				       this->k, this->m, this->n, (const float *)&one,
+				       this->k, this->mTile[this->iTile], this->n, (const float *)&one,
 				       (const float *) this->dev_centers, this->k,
 				       (const float *) this->dev_data, this->n,
 				       (const float *)&zero, (float *) this->dev_mmMult, this->k),
 			   KMEANS_ERROR_CLOSEST_CENTERS);
 
-      err = rowTransformMinimumF(this->m, this->k,
+      err = rowTransformMinimumF(this->mStart[this->iTile], this->mTile[this->iTile], this->k,
 				 (const float *)this->dev_data_norm_squared,
 				 (const float *)this->dev_centers_norm_squared,
 				 (const float *)this->dev_mmMult,
@@ -469,13 +522,13 @@ kmeansErrorStatus kmeans<TYPE>::closestCenters() {
     }
     else {
       CUBLAS_API_SAFE_CALL(cublasDgemm(this->handle, CUBLAS_OP_N, CUBLAS_OP_N,
-				       this->k, this->m, this->n, (const double *)&one,
+				       this->k, this->mTile[this->iTile], this->n, (const double *)&one,
 				       (const double *) this->dev_centers, this->k,
 				       (const double *) this->dev_data, this->n,
 				       (const double *)&zero, (double *) this->dev_mmMult, this->k),
 			   KMEANS_ERROR_CLOSEST_CENTERS);
 
-      err = rowTransformMinimumD(this->m, this->k,
+      err = rowTransformMinimumD(this->mStart[this->iTile], this->mTile[this->iTile], this->k,
 				 (const double *)this->dev_data_norm_squared,
 				 (const double *)this->dev_centers_norm_squared,
 				 (const double *)this->dev_mmMult,
@@ -483,10 +536,9 @@ kmeansErrorStatus kmeans<TYPE>::closestCenters() {
     }
   }
   else {
-    err = ClosestCenters<TYPE>(this->m, this->n, this->dev_data,
-			       this->k, this->dev_centers,
-			       this->dev_data_norm_squared,
-			       this->dev_centers_norm_squared,
+    err = ClosestCenters<TYPE>(this->mStart[this->iTile], this->mTile[this->iTile], 
+			       this->n, this->dev_data, this->k, this->dev_centers,
+			       this->dev_data_norm_squared, this->dev_centers_norm_squared,
 			       this->p, this->dev_partial_reduction,
 			       this->dev_partial_reduction_indices,
 			       this->dev_ccindex, this->constantMemSet);
@@ -514,10 +566,11 @@ kmeansErrorStatus kmeans<TYPE>::clusterCenters() {
   CUDA_API_SAFE_CALL(cudaEventRecord(this->start, 0), KMEANS_ERROR_CLUSTER_CENTERS);
 
   /* compute the new cluster centers */
-  err = ClusterCenters<TYPE>(this->m, this->n, this->k,
-			     this->dev_data, this->dev_ccindex,
-			     this->dev_centers_large, this->dev_counts_large,
-			     this->dev_centers_transpose, this->dev_counts);
+  err = ClusterCenters<TYPE>(this->mStart[this->iTile], this->mTile[this->iTile], 
+			     this->n, this->k, this->lastTile, this->dev_data,
+			     this->dev_ccindex, this->dev_centers_large,
+			     this->dev_counts_large, this->dev_centers_transpose,
+			     this->dev_counts);
 
   /* stop the timer */
   CUDA_API_SAFE_CALL(cudaEventRecord(this->stop, 0), KMEANS_ERROR_CLUSTER_CENTERS);
@@ -534,16 +587,33 @@ template<class TYPE>
 kmeansErrorStatus kmeans<TYPE>::compactness() {
 
   kmeansCudaErrorStatus err = NO_ERROR;
+  kmeansErrorStatus errK = KMEANS_SUCCESS;
 
   /* start the timer */
   float DT = 0.f;
   CUDA_API_SAFE_CALL(cudaEventRecord(this->start, 0), KMEANS_ERROR_COMPACTNESS);
 
-  /* compute the compactness */
-  err = Compactness<TYPE>(this->m, this->n, this->k,
-			  this->dev_data, this->dev_ccindex,
-			  this->dev_centers_transpose, this->dev_compactness,
-			  this->host_compactness.data());
+  /* loop over the tiles */
+  for (int i=0; i<this->nTiles; ++i) {
+    /* copy a chunk of the rows to the device */
+    this->iTile = i;
+    errK = this->copyTileToDevice();
+    if (errK != KMEANS_SUCCESS) return errK;
+    
+    /* compute the compactness */
+    err = Compactness<TYPE>(this->mStart[this->iTile], this->mTile[this->iTile], 
+			    this->n, this->k, this->dev_data, this->dev_ccindex,
+			    this->dev_centers_transpose, this->dev_compactness);
+    
+  }
+  
+  /* copy back to the host and finish the calculation */
+  CUDA_SAFE_CALL(cudaMemcpy(this->host_compactness.data(),this->dev_compactness,
+			    getMaxConcurrentBlocks()*sizeof(TYPE),
+			    cudaMemcpyDeviceToHost),ERROR_COMPACTNESS);
+  for (int j=1; j<getMaxConcurrentBlocks(); ++j)
+    this->host_compactness[0] += this->host_compactness[j];
+  
 
   /* stop the timer */
   CUDA_API_SAFE_CALL(cudaEventRecord(this->stop, 0), KMEANS_ERROR_COMPACTNESS);
@@ -592,6 +662,7 @@ kmeansErrorStatus kmeans<TYPE>::transpose() {
   if (err != NO_ERROR) return KMEANS_ERROR_TRANSPOSE;
   return KMEANS_SUCCESS;
 }
+
 /* reset */
 template<class TYPE>
 kmeansErrorStatus kmeans<TYPE>::reset() {
@@ -640,17 +711,35 @@ kmeansErrorStatus kmeans<TYPE>::compute() {
       err = reset();
       if (err != KMEANS_SUCCESS) return err;
 
-      /* compute the closest center */
-      err = closestCenters();
-      if (err != KMEANS_SUCCESS) return err;
+      /* set this to true by default ... assume 1 tile */
+      this->lastTile = true;
 
-      /* compute the closest center */
-      err = clusterCenters();
-      if (err != KMEANS_SUCCESS) return err;
+      /* loop over the tiles */
+      for (int i=0; i<this->nTiles; ++i) {
+	/* copy a chunk of the rows to the device */
+	this->iTile = i;
+	
+	/* logic for last tile */
+	if (this->iTile<this->nTiles-1) this->lastTile=false;
+	else this->lastTile=true;
 
-      /* compute the compactness */
+	err = this->copyTileToDevice();
+	if (err != KMEANS_SUCCESS) return err;
+
+	/* compute the closest center */
+	err = closestCenters();
+	if (err != KMEANS_SUCCESS) return err;
+	
+	/* compute the closest center */
+	err = clusterCenters();
+	if (err != KMEANS_SUCCESS) return err;
+      }
+
+      /* compute the compactness ... loop over the tiles is 
+	 internal to this routine */
       err = compactness();
       if (err != KMEANS_SUCCESS) return err;
+      
 
       /* transpose the results */
       err = transpose();

@@ -1,7 +1,7 @@
 #include "KmeansCudaKernels.h"
 
 template<class TYPE, const int SHMEMSIZE>
-__global__ void _dev_rowTransformMinimum(const int n, const int k, 
+__global__ void _dev_rowTransformMinimum(const int m0, const int m, const int n, 
 					 const TYPE * __restrict__ normRowsOfA_squared,
 					 const TYPE * __restrict__ normColsOfB_squared,
 					 const TYPE * __restrict__ input, 
@@ -12,19 +12,19 @@ __global__ void _dev_rowTransformMinimum(const int n, const int k,
   __shared__ TYPE rowData;
   TYPE dataReg;
   TYPE indexReg;
-  int m = (k+blockDim.x-1)/blockDim.x;
+  int k = (n+blockDim.x-1)/blockDim.x;
 
-  for (int i=blockIdx.x; i<n; i+=gridDim.x) {
+  for (int i=blockIdx.x; i<m; i+=gridDim.x) {
     dataReg = FLT_MAX;
     indexReg = -1;
 
     if (threadIdx.x==0) rowData = normRowsOfA_squared[i];
     __syncthreads();
 
-    for (int j=0; j<m; ++j) {
+    for (int j=0; j<k; ++j) {
       int tid = threadIdx.x + j*blockDim.x;
-      if (tid<k) {
-        TYPE val = input[i*k+tid];
+      if (tid<n) {
+        TYPE val = input[i*n+tid];
         val = rowData + normColsOfB_squared[tid] - 2.0*val;
         if (val<dataReg) {
           dataReg = val;
@@ -53,17 +53,17 @@ __global__ void _dev_rowTransformMinimum(const int n, const int k,
       shift >>= 1;
     }
     if (threadIdx.x==0)
-      output[i] = index[0];
+      output[m0+i] = index[0];
   }
 }
 
 
 /* Generic Templated interface to calling the CUDA kernel */
 template<class TYPE>
-DllExport kmeansCudaErrorStatus rowTransformMinimum(const int n, const int k, 
-					  const TYPE * normRowsOfA_squared, 
-					  const TYPE * normColsOfB_squared, 
-					  const TYPE * input, int * output) {
+DllExport kmeansCudaErrorStatus rowTransformMinimum(const int m0, const int m, const int n, 
+						    const TYPE * normRowsOfA_squared, 
+						    const TYPE * normColsOfB_squared, 
+						    const TYPE * input, int * output) {
   try {
     const int nThreads = 128;
     dim3 grid = dim3(getMaxConcurrentBlocks(), 1, 1);
@@ -73,7 +73,7 @@ DllExport kmeansCudaErrorStatus rowTransformMinimum(const int n, const int k,
     CUDA_SAFE_CALL(cudaDeviceSetSharedMemConfig(cudaSharedMemBankSizeEightByte),ERROR_ROWTRANSFORMMINIMUM);
 
     _dev_rowTransformMinimum<TYPE,nThreads><<<grid,block>>>
-      (n,k,normRowsOfA_squared,normColsOfB_squared,input,output);
+      (m0,m,n,normRowsOfA_squared,normColsOfB_squared,input,output);
     CUDA_SAFE_CALL(cudaGetLastError(),ERROR_ROWTRANSFORMMINIMUM);
 
   } catch (...) {
@@ -83,17 +83,17 @@ DllExport kmeansCudaErrorStatus rowTransformMinimum(const int n, const int k,
 }
 
 /* Single precision C entry Point */
-kmeansCudaErrorStatus rowTransformMinimumF(const int n, const int k, 
+kmeansCudaErrorStatus rowTransformMinimumF(const int m0, const int m, const int n, 
 					   const float * normRowsOfA_squared, 
 					   const float * normColsOfB_squared, 
 					   const float * input, int * output) {
-  return rowTransformMinimum<float>(n,k,normRowsOfA_squared,normColsOfB_squared,input,output);
+  return rowTransformMinimum<float>(m0,m,n,normRowsOfA_squared,normColsOfB_squared,input,output);
 }
 
 /* Double precision C entry Point */
-kmeansCudaErrorStatus rowTransformMinimumD(const int n, const int k,
+kmeansCudaErrorStatus rowTransformMinimumD(const int m0, const int m, const int n,
 					   const double * normRowsOfA_squared, 
 					   const double * normColsOfB_squared, 
 					   const double * input, int * output) {
-  return rowTransformMinimum<double>(n,k,normRowsOfA_squared,normColsOfB_squared,input,output);
+  return rowTransformMinimum<double>(m0,m,n,normRowsOfA_squared,normColsOfB_squared,input,output);
 }
