@@ -38,9 +38,18 @@ __global__ void _dev_Compactness(const int m0, const int m, const int n, const i
 
 template<class TYPE>
 DllExport kmeansCudaErrorStatus Compactness(const int m0, const int m,
-					    const int n, const int k,
-					    const TYPE * data, const int * indices, 
-					    const TYPE * centers, TYPE * compactness) {
+				  const int n, const int k,
+				  const TYPE * data, const int * indices, 
+				  const TYPE * centers, TYPE * compactness) {
+  
+  return NO_ERROR;
+}
+
+template<>
+kmeansCudaErrorStatus Compactness(const int m0, const int m,
+				  const int n, const int k,
+				  const float * data, const int * indices, 
+				  const float * centers, float * compactness) {
   
   try {
     const int nThreads = 128;
@@ -48,9 +57,32 @@ DllExport kmeansCudaErrorStatus Compactness(const int m0, const int m,
     dim3 block = dim3(nThreads,1,1);
 
     CUDA_SAFE_CALL(cudaDeviceSetSharedMemConfig(cudaSharedMemBankSizeFourByte),ERROR_COMPACTNESS);
-    CUDA_SAFE_CALL(cudaFuncSetCacheConfig(_dev_Compactness<TYPE,nThreads>,cudaFuncCachePreferShared),ERROR_COMPACTNESS);
+    CUDA_SAFE_CALL(cudaFuncSetCacheConfig(_dev_Compactness<float,nThreads>,cudaFuncCachePreferShared),ERROR_COMPACTNESS);
 
-    _dev_Compactness<TYPE,nThreads><<<grid,block>>>(m0,m,n,k,data,indices,centers,compactness);
+    _dev_Compactness<float,nThreads><<<grid,block>>>(m0,m,n,k,data,indices,centers,compactness);
+    CUDA_SAFE_CALL(cudaGetLastError(),ERROR_COMPACTNESS);
+    
+  } catch (...) {
+    return ERROR_COMPACTNESS;
+  }
+  return NO_ERROR;
+}
+
+template<>
+kmeansCudaErrorStatus Compactness(const int m0, const int m,
+				  const int n, const int k,
+				  const double * data, const int * indices, 
+				  const double * centers, double * compactness) {
+  
+  try {
+    const int nThreads = 128;
+    dim3 grid = dim3(getMaxConcurrentBlocks(), 1, 1);
+    dim3 block = dim3(nThreads,1,1);
+
+    CUDA_SAFE_CALL(cudaDeviceSetSharedMemConfig(cudaSharedMemBankSizeFourByte),ERROR_COMPACTNESS);
+    CUDA_SAFE_CALL(cudaFuncSetCacheConfig(_dev_Compactness<double,nThreads>,cudaFuncCachePreferShared),ERROR_COMPACTNESS);
+
+    _dev_Compactness<double,nThreads><<<grid,block>>>(m0,m,n,k,data,indices,centers,compactness);
     CUDA_SAFE_CALL(cudaGetLastError(),ERROR_COMPACTNESS);
     
   } catch (...) {

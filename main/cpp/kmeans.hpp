@@ -322,6 +322,21 @@ private:
   /**
    * timer
    */
+  float dtBuild;
+
+  /**
+   * timer
+   */
+  float dtRowNormalize;
+
+  /**
+   * timer
+   */
+  float dtInitialize;
+
+  /**
+   * timer
+   */
   float dtCopy;
 
   /**
