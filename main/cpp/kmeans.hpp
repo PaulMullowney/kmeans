@@ -12,6 +12,9 @@
 #include <vector>
 #include <algorithm>
 #include <iostream>
+#include <random>
+#include <chrono>
+#include <array>
 #include <string>
 #include <string.h>
 
@@ -46,7 +49,8 @@ extern "C" {
     KMEANS_ERROR_MEMCPY = 9, /**< error in copying the data back to the host */
     KMEANS_ERROR_TILING = 10, /**< error in the tiling */
     KMEANS_ERROR_COPY_TILE = 11, /**< error copying a tile of data to the device */
-    KMEANS_NONCONVERGENCE = 12, /**< algorithm did not converge */
+    KMEANS_ERROR_CONSTRUCT_MINIBATCH = 12, /**< error in constructing the mini batch */
+    KMEANS_NONCONVERGENCE = 13, /**< algorithm did not converge */
   };
 
   /**
@@ -65,6 +69,8 @@ extern "C" {
     else if (err==KMEANS_ERROR_COMPUTE) return "error in compute";
     else if (err==KMEANS_ERROR_MEMCPY) return "error in copying the data back to the host";
     else if (err==KMEANS_ERROR_TILING) return "error in the tiling";
+    else if (err==KMEANS_ERROR_COPY_TILE) return "error in copy tile";
+    else if (err==KMEANS_ERROR_CONSTRUCT_MINIBATCH) return "error in constructing the minibatch";
     else if (err==KMEANS_NONCONVERGENCE) return "algorithm did not converge";
     else return "no error";
 
@@ -91,7 +97,7 @@ extern "C" {
 							const int k, const float criterion,
 							const int maxIters, const int numRetries,
 							const int initAlgorithm, const int useCUBLAS,
-							float * result);
+							float * result, const float miniBatchFraction=1.0);
 
   /**
    * @brief this is the public interface for calling the compute kmeans
@@ -114,7 +120,7 @@ extern "C" {
 							const int k, const double criterion,
 							const int maxIters, const int numRetries,
 							const int initAlgorithm, const int useCUBLAS,
-							double * result);
+							double * result, const double miniBatchFraction=1.0);
 
 #if defined(__cplusplus)
 }
@@ -151,7 +157,7 @@ public:
   kmeans(const int m, const int n, const int k,
 	 const TYPE criterion, const int maxIters,
 	 const int numRetries, const int initAlgorithm,
-	 const int useCUBLAS);
+	 const int useCUBLAS, const TYPE miniBatchFraction=1.0);
 
   /**
    * @brief destructor
@@ -188,12 +194,18 @@ public:
   /**
    * @brief initialize the data
    *
-   * @param data the input data
    * @param result host buffer which receives the data from the device
    *
    * @return an error status denoting success or failure
    */
-  virtual kmeansErrorStatus initialize(const TYPE * data, TYPE * result);
+  virtual kmeansErrorStatus initialize(TYPE * result);
+
+  /**
+   * @brief construct the minibatch
+   *
+   * @return an error status denoting success or failure
+   */
+  virtual kmeansErrorStatus constructMiniBatch();
 
   /**
    * @brief run the computation
@@ -305,6 +317,55 @@ private:
   bool useCUBLAS;
 
   /**
+   * whether or not to use the minibatch version of the algorithm
+   */
+  bool useMiniBatch;
+
+  /**
+   * the fraction of the data to use in mini batch
+   */
+  float miniBatchFraction;
+
+  /**
+   * vector of starting points for the minibatch
+   */
+  vector<int> mMBStart;
+
+  /**
+   * vector of booleans which indicates if the minibatch wraps around the data set
+   */
+  vector<bool> mMBWrapTile;
+
+  /**
+   * The number of distinct data points (i.e. the number of rows in the data)
+   * for minibatch
+   */
+  int m_mb;
+
+  /**
+   * The number of distinct data points (i.e. the number of rows in the data)
+   * rounded up to the next multiple of TILESIZE*N_UNROLL_FLOAT (DOUBLE)
+   * for minibatch
+   */
+  int m_mb_padded;
+
+  /**
+   * Index into the array for the starting and end points of the minibatch.
+   */
+  int m_mb_index;
+
+  /**
+   * A device array of size m_mb_added x n containing the mini batch input data
+   */
+  TYPE * dev_data_mb;
+
+  /**
+   * A device array of length m storing the norm of each row (squared) of the input data
+   */
+  TYPE * dev_data_norm_squared_mb;
+
+
+  /**
    * handle to the cublas library
    */
   cublasHandle_t handle;
@@ -338,6 +399,11 @@ private:
    * timer
    */
   float dtCopy;
+
+  /**
+   * timer
+   */
+  float dtConstructMiniBatch;
 
   /**
    * timer
@@ -380,12 +446,13 @@ private:
   int numRetries;
 
   /**
-   * The number of distinct data points (i.e. the number of rows in the data)
+   * The number of compute data points (i.e. the number of rows in the data)
    */
   int m;
 
   /**
-   * The number of distinct data points (i.e. the number of rows in the data)
+   * The padded number of compute data points (i.e. the number of rows in the data)
+   * rounded up to the next multiple of TILESIZE*N_UNROLL_FLOAT (DOUBLE)
    */
   int m_padded;
 
@@ -412,7 +479,7 @@ private:
   /**
    * A device array of size m x n containing the input data
    */
-  const TYPE * host_data;
+  TYPE * host_data;
 
   /**
    * A device array of size m x n containing the input data

@@ -1,3 +1,4 @@
+
 #include "kmeans.hpp"
 #include "gtest/gtest.h"
 
@@ -15,7 +16,8 @@ class KmeansTests : public testing::Test {
   int nIters;
   int useCublas;
   float rtol;
-  
+  float fraction;
+
   /* @brief constructor */
   KmeansTests() {
   }
@@ -36,14 +38,16 @@ class KmeansTests : public testing::Test {
       nIters = atoi(my_argv[5]);
       useCublas = atoi(my_argv[6]);
       rtol = atof(my_argv[7]);
+      fraction = atof(my_argv[8]);
     } else {
       fileName = string("mat-sift");
       m = 898790;
       n = 128;
       k = 256;
       nIters = 50;
-      useCublas = 1;
+      useCublas = 0;
       rtol = 1.e-5;
+      fraction = 1.0;
     }
   }
 
@@ -72,7 +76,7 @@ TEST_F(KmeansTests, TEST) {
   memset(centers, 0, sizeof(float)*k*n);
 
   /* run kmeans */
-  err = computeKmeansF(data,m,n,k,rtol,nIters,1,0,useCublas,centers);
+  err = computeKmeansF(data,m,n,k,rtol,nIters,1,0,useCublas,centers,fraction);
   if (err!=KMEANS_SUCCESS) {
     cout << "Kmeans(CUBLAS) internal error '" << kmeansGetErrorString(err) << "'" <<  endl;
   }
