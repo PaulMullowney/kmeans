@@ -412,7 +412,7 @@ kmeansErrorStatus kmeans<TYPE>::buildData(const TYPE * data) {
     // obtain a time-based seed:
     std::vector<int> indices(this->m);
     for (int i=0; i<this->m; ++i) indices[i]=i;
-    unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
+    unsigned seed = 0; //std::chrono::system_clock::now().time_since_epoch().count();
     std::shuffle(indices.begin(), indices.end(), std::default_random_engine(seed));
 
     for (int i=0; i<this->m; ++i) {
