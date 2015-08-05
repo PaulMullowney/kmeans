@@ -203,9 +203,11 @@ public:
   /**
    * @brief construct the minibatch
    *
+   * @param index the index of the minibatch in the current tile
+   *
    * @return an error status denoting success or failure
    */
-  virtual kmeansErrorStatus constructMiniBatch();
+  virtual kmeansErrorStatus constructMiniBatch(int index);
 
   /**
    * @brief run the computation
@@ -213,6 +215,22 @@ public:
    * @return an error status denoting success or failure
    */
   virtual kmeansErrorStatus compute();
+
+  /**
+   * @brief run the computation using the standard approach (i.e.
+   *  non minibatch)
+   *
+   * @return an error status denoting success or failure
+   */
+  virtual kmeansErrorStatus computeStandard();
+
+  /**
+   * @brief run the computation with the mini batch algorithm
+   *  when the data is very large
+   *
+   * @return an error status denoting success or failure
+   */
+  virtual kmeansErrorStatus computeMiniBatch();
 
   /**
    * @brief compute closest centers
@@ -261,9 +279,11 @@ public:
   /**
    * @brief copy the current tile to the device
    *
+   * @param initialize if used in initialize, we use the old style tiling code
+   *
    * @return an error status denoting success or failure
    */
-  virtual kmeansErrorStatus copyTileToDevice();
+  virtual kmeansErrorStatus copyTileToDevice(bool standardApproach=true);
 
 protected:
 
@@ -335,6 +355,11 @@ private:
    * vector of booleans which indicates if the minibatch wraps around the data set
    */
   vector<bool> mMBWrapTile;
+
+  /**
+   * The number of minibatches per tile
+   */
+  int num_mb_per_tile;
 
   /**
    * The number of distinct data points (i.e. the number of rows in the data)

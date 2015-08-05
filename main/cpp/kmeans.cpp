@@ -48,32 +48,11 @@ kmeans<TYPE>::kmeans(const int m, const int n, const int k,
     this->m_mb_padded = ((this->m_mb + this->factor - 1) / this->factor)*this->factor;
     this->m_mb_index = 0;
 
+
     std::cout << "miniBatchFraction = " << this->miniBatchFraction << std::endl;
-    std::cout << "\tm=" << this->m_mb << std::endl;
-    std::cout << "\tm_padded=" << this->m_mb_padded << std::endl;
-
-    int iters = 0;
-    int mCurrent = 0;
-    do {
-      this->mMBStart.push_back(mCurrent);
-      mCurrent += this->m_mb_padded;
-      if (mCurrent>this->m) {
-	this->mMBWrapTile.push_back(true);   
-	mCurrent = mCurrent%(this->m);
-	iters++;	
-      } else if (mCurrent==this->m) {
-	this->mMBWrapTile.push_back(false);   
-	mCurrent = mCurrent%(this->m);
-	iters++;	
-      } else {
-	this->mMBWrapTile.push_back(false);
-      }
-#if 0
-      std::cout << "iters=" << iters << " : " << this->mMBStart.back() 
-		<< " " << this->mMBWrapTile.back() << std::endl;
-#endif
-    } while (iters<=this->maxIters);
-
+    std::cout << "\tm =" << this->m << std::endl;
+    std::cout << "\tm_mb =" << this->m_mb << std::endl;
+    std::cout << "\tm_mb_padded =" << this->m_mb_padded << std::endl;
 
   } else {
     this->useMiniBatch = false;
@@ -307,9 +286,23 @@ kmeansErrorStatus kmeans<TYPE>::computeTiling() {
     if (this->useMiniBatch)
       fixedMemory += (uint64_t) (this->m_mb_padded * this->n * sizeof(TYPE));
     
+    /* get the device memory */
+    size_t freeMemory = 0;
+    size_t totalMemory = 0;
+    CUDA_API_SAFE_CALL(cudaMemGetInfo(&freeMemory, &totalMemory),KMEANS_ERROR_TILING);
+
+    /* subdivide until all the arrays fit */
+    /* the boundaries of the tiles must be a multiple of factor */
+    uint64_t requiredMemory = fixedMemory;
+
+    if (fixedMemory>.95*freeMemory) {
+      std::cout << "Required fixed memory exceeds device limits. If using minibatch, try lowering the minibatch fraction. Exiting." << std::endl;
+      return KMEANS_ERROR_TILING;
+    }
+
+    /* variable memory */
     uint64_t varMemoryArray = 0;
     uint64_t varMemoryMMResult = 0;
-    varMemoryArray += (uint64_t) (this->m_padded * this->n * sizeof(TYPE));      
     if (useCUBLAS) {
       varMemoryMMResult += (uint64_t) (mComputePadded * this->k * sizeof(TYPE));
     } else {
@@ -317,73 +310,148 @@ kmeansErrorStatus kmeans<TYPE>::computeTiling() {
       varMemoryMMResult += (uint64_t) (mComputePadded * this->p * sizeof(int));
     }
 
+    if (this->useMiniBatch) {
 
-#if 1
-    cout << "Fixed Memory = " << 1.0*fixedMemory/(1024*1024*1024) << " GBs" << endl;
-    cout << "Array Memory = " << 1.0*varMemoryArray/(1024*1024*1024) << " GBs" << endl;
-    cout << "Matrix Multiply Memory = " << 1.0*varMemoryMMResult/(1024*1024*1024) << " GBs" << endl;
+      /********************/
+      /*  Using Minibatch */
+      /********************/
+
+      this->num_mb_per_tile = 0;
+      uint64_t varMemoryArray2 = 0;
+      uint64_t requiredMemory2 = 0;
+
+      do {
+	this->num_mb_per_tile++;
+	int MM       = this->num_mb_per_tile*mCompute;
+	int MMpadded = ((MM + this->factor - 1) / this->factor)*this->factor;
+
+	int MM2       = (this->num_mb_per_tile+1)*mCompute;
+	int MMpadded2 = ((MM2 + this->factor - 1) / this->factor)*this->factor;
+
+	varMemoryArray = (uint64_t) (MMpadded * this->n * sizeof(TYPE));      
+	varMemoryArray2 = (uint64_t) (MMpadded2 * this->n * sizeof(TYPE));      
+	
+	/* total required memory */
+	requiredMemory =  varMemoryArray + varMemoryMMResult + fixedMemory;
+	requiredMemory2 =  varMemoryArray2 + varMemoryMMResult + fixedMemory;
+
+	if (this->num_mb_per_tile==1 && requiredMemory>.95*freeMemory) {
+	  std::cout << "Required fixed memory exceeds device limits. If using minibatch, try lowering the minibatch fraction. Exiting." << std::endl;
+	  return KMEANS_ERROR_TILING;
+	}
+
+      } while (requiredMemory<=.95*freeMemory && requiredMemory2<=.95*freeMemory);
+
+
+
+      /* minibatch start and stop points */
+      int iters = 0;
+      int mCurrent = 0;
+      do {
+	this->mMBStart.push_back(mCurrent);
+	mCurrent += this->m_mb*this->num_mb_per_tile;
+	if (mCurrent>this->m) {
+	  this->mMBWrapTile.push_back(true);   
+	  mCurrent = mCurrent%(this->m);
+	  iters++;	
+	} else if (mCurrent==this->m) {
+	  this->mMBWrapTile.push_back(true);   
+	  mCurrent = 0;
+	  iters++;	
+	} else {
+	  this->mMBWrapTile.push_back(false);
+	}
+#if 0
+	std::cout << "iters=" << iters << " : " << this->mMBStart.back() 
+		  << " " << this->mMBWrapTile.back() << std::endl;
 #endif
+      } while (iters<=this->maxIters);
 
-    /* get the device memory */
-    size_t freeMemory = 0;
-    size_t totalMemory = 0;
-    CUDA_API_SAFE_CALL(cudaMemGetInfo(&freeMemory, &totalMemory),KMEANS_ERROR_TILING);
 
-#if 1
-    cout << "Free Memory = " << 1.0*freeMemory/(1024*1024*1024) << " GBs" << endl;
-    cout << "Total Memory = " << 1.0*totalMemory/(1024*1024*1024) << " GBs" << endl;
-#endif
+      /* determine the tile start positions and the number of rows to compute in a tile */
+      int tileSize = this->num_mb_per_tile*this->m_mb;
+      this->nTiles = ((this->m + tileSize-1)/tileSize);
 
-    /* subdivide until all the arrays fit */
-    /* the boundaries of the tiles must be a multiple of factor */
-    uint64_t requiredMemory = fixedMemory + varMemoryArray + varMemoryMMResult;
-    
-    /* we will attempt to use at most 95% of the free memory */
-    this->nTiles = 1;
-    this->mChunk = (this->m + this->nTiles - 1)/this->nTiles;
-
-    if (requiredMemory>.95*freeMemory && this->useMiniBatch) {
-      std::cout << "One cannot use minibatch when multiple tiles are required ... yet." << std::endl;
-      return KMEANS_ERROR_TILING;
-    }
-    
-    while (requiredMemory>.95*freeMemory) {
-      /* increment the number of tiles */
-      this->nTiles++;
+      this->mTile.resize(this->nTiles);
+      fill(this->mTile.begin(), this->mTile.end(), tileSize);
+      this->mTile.back() = this->m - (this->nTiles-1)*tileSize;
       
-      /* calculate the chunk size */
-      this->mChunk = (this->m + this->nTiles - 1)/this->nTiles;
-      this->m_padded = ((this->mChunk + this->factor - 1) / this->factor)*this->factor;
-      
-      /* update the memory requirements */
-      varMemoryArray = (uint64_t) (this->m_padded * this->n * sizeof(TYPE));
-      if (useCUBLAS) {
-	varMemoryMMResult = (uint64_t) (this->m_padded * this->k * sizeof(TYPE));
-      } else {
-	varMemoryMMResult = (uint64_t) (this->m_padded * this->p * sizeof(TYPE));
-	varMemoryMMResult += (uint64_t) (this->m_padded * this->p * sizeof(int));
-      }
-      
-      /* calculate the new required memory */
-      requiredMemory = fixedMemory + varMemoryArray + varMemoryMMResult;
-    }
-
-    /* determine the tile start positions and the number of rows to compute in a tile */
-    this->mTile.resize(this->nTiles);
-    fill(this->mTile.begin(), this->mTile.end(), this->m_padded);
-    this->mTile.back() = this->m - (this->nTiles-1)*this->m_padded;
-    
-    this->mStart.resize(this->nTiles);
-    fill(this->mStart.begin(), this->mStart.end(), 0); 
-    for (int i=1; i<this->nTiles; ++i)
-      this->mStart[i] = this->mStart[i-1] + this->mTile[i-1];
+      this->mStart.resize(this->nTiles);
+      fill(this->mStart.begin(), this->mStart.end(), 0); 
+      for (int i=1; i<this->nTiles; ++i)
+	this->mStart[i] = this->mStart[i-1] + this->mTile[i-1];
 
 #if 0
-    for (int i=0; i<this->nTiles; ++i) {
-      cout << i+1 << "/" << this->nTiles << " " << this->mStart[i] << " " 
-	   << this->mTile[i] << " " << this->mStart[i] + this->mTile[i] << endl;
-    }
+      for (int i=0; i<this->nTiles; ++i) {
+	cout << i+1 << "/" << this->nTiles << " " << this->mStart[i] << " " 
+	     << this->mTile[i] << " " << this->mStart[i] + this->mTile[i] << endl;
+      }
 #endif
+
+#if 0
+      std::cout << "num MBs per tile = " << this->num_mb_per_tile << std::endl;
+      std::cout << "freeMemory = " << freeMemory/(1024.*1024.*1024.) << std::endl;
+      std::cout << "fixedMemory = " << fixedMemory/(1024.*1024.*1024.) << std::endl;
+      std::cout << "varMemoryArray = " << varMemoryArray/(1024.*1024.*1024.) << std::endl;
+      std::cout << "varMemoryMMResult = " << varMemoryMMResult/(1024.*1024.*1024.) << std::endl;
+      std::cout << "requiredMemory = " << requiredMemory/(1024.*1024.*1024.) << std::endl;
+#endif
+
+
+    } else {
+
+      /*********************************/
+      /*  Normal (non mini batch) Code */
+      /*********************************/
+
+      /* variable memory */
+      varMemoryArray += (uint64_t) (this->m_padded * this->n * sizeof(TYPE));      
+
+      /* total required memory */
+      requiredMemory +=  varMemoryArray + varMemoryMMResult;
+
+      /* loop until required memroy is less than 95% of free memory */
+      this->nTiles=1;
+      while (requiredMemory>.95*freeMemory) {
+
+	/* increment the number of tiles */
+	this->nTiles++;
+	
+	/* calculate the chunk size */
+	this->mChunk = (this->m + this->nTiles - 1)/this->nTiles;
+	this->m_padded = ((this->mChunk + this->factor - 1) / this->factor)*this->factor;
+	
+	/* update the memory requirements */
+	varMemoryArray = (uint64_t) (this->m_padded * this->n * sizeof(TYPE));
+	if (useCUBLAS) {
+	  varMemoryMMResult = (uint64_t) (this->m_padded * this->k * sizeof(TYPE));
+	} else {
+	  varMemoryMMResult = (uint64_t) (this->m_padded * this->p * sizeof(TYPE));
+	  varMemoryMMResult += (uint64_t) (this->m_padded * this->p * sizeof(int));
+	}
+	
+	/* calculate the new required memory */
+	requiredMemory = fixedMemory + varMemoryArray + varMemoryMMResult;
+      }
+
+      /* determine the tile start positions and the number of rows to compute in a tile */
+      this->mTile.resize(this->nTiles);
+      fill(this->mTile.begin(), this->mTile.end(), this->m_padded);
+      this->mTile.back() = this->m - (this->nTiles-1)*this->m_padded;
+      
+      this->mStart.resize(this->nTiles);
+      fill(this->mStart.begin(), this->mStart.end(), 0); 
+      for (int i=1; i<this->nTiles; ++i)
+	this->mStart[i] = this->mStart[i-1] + this->mTile[i-1];
+
+#if 0
+      for (int i=0; i<this->nTiles; ++i) {
+	cout << i+1 << "/" << this->nTiles << " " << this->mStart[i] << " " 
+	     << this->mTile[i] << " " << this->mStart[i] + this->mTile[i] << endl;
+      }
+#endif
+    }
+
     /* stop the timer */
     CUDA_API_SAFE_CALL(cudaEventRecord(this->stop, 0), KMEANS_ERROR_TILING);
     CUDA_API_SAFE_CALL(cudaEventSynchronize(this->stop), KMEANS_ERROR_TILING);
@@ -483,12 +551,19 @@ kmeansErrorStatus kmeans<TYPE>::buildData(const TYPE * data) {
     /*********************************/
     CUBLAS_API_SAFE_CALL(cublasCreate(&this->handle), KMEANS_ERROR_BUILDDATA);
 
-    /* allocate space for the result of the matrix matrix multiply */
     /* input data */
-    nBytes = this->m_padded * this->n * sizeof(TYPE);
+    int arrayRows = 0;
+    if (this->useMiniBatch) {
+      arrayRows = ((this->num_mb_per_tile*this->m_mb + this->factor - 1) / this->factor)*this->factor;
+    } else {
+      arrayRows = this->m_padded;
+    }
+
+    nBytes = arrayRows * this->n * sizeof(TYPE);
     CUDA_API_SAFE_CALL(cudaMalloc((void**)&(this->dev_data), nBytes), KMEANS_ERROR_BUILDDATA);
     CUDA_API_SAFE_CALL(cudaMemset(this->dev_data, 0, nBytes), KMEANS_ERROR_BUILDDATA);
 
+    /* allocate space for the result of the matrix matrix multiply */
     if (this->useCUBLAS) {      
       /* matrix matrix multiply buffer */
       nBytes = mComputePadded * this->k * sizeof(TYPE);
@@ -538,21 +613,49 @@ kmeansErrorStatus kmeans<TYPE>::buildData(const TYPE * data) {
 
 /* copy a tile to the device */
 template<class TYPE>
-kmeansErrorStatus kmeans<TYPE>::copyTileToDevice() {
+kmeansErrorStatus kmeans<TYPE>::copyTileToDevice(bool standardApproach) {
   
   try {
     /* start the timer */
     float DT = 0.f;
     CUDA_API_SAFE_CALL(cudaEventRecord(this->start, 0), KMEANS_ERROR_COPY_TILE);
 
-    /* copy a chunk of the rows to the device */
-    if (!this->entireDatasetIsOnDevice) {
-      const TYPE * src = this->host_data + this->mStart[this->iTile]*this->n;
-      int nBytes = this->mTile[this->iTile]*this->n*sizeof(TYPE);
-      CUDA_API_SAFE_CALL(cudaMemcpy(this->dev_data,src,nBytes,cudaMemcpyHostToDevice),
-			 KMEANS_ERROR_COPY_TILE);
-    }
-    if (this->nTiles==1) this->entireDatasetIsOnDevice=true;
+    if (standardApproach) {
+      /* copy a chunk of the rows to the device */
+      if (!this->entireDatasetIsOnDevice) {
+	const TYPE * src = this->host_data + this->mStart[this->iTile]*this->n;
+	int nBytes = this->mTile[this->iTile]*this->n*sizeof(TYPE);
+	CUDA_API_SAFE_CALL(cudaMemcpy(this->dev_data,src,nBytes,cudaMemcpyHostToDevice),
+			   KMEANS_ERROR_COPY_TILE);
+      }
+      if (this->nTiles==1) this->entireDatasetIsOnDevice=true;
+    } else {
+
+      int i = this->m_mb_index;
+      int j = this->m_mb_index+1;
+
+      if (!this->mMBWrapTile[i]) {
+	/* the matrix data */
+	int nBytes = (this->mMBStart[j] - this->mMBStart[i]) * this->n * sizeof(TYPE);
+	TYPE * src = this->host_data + this->mMBStart[i] * this->n;
+	CUDA_API_SAFE_CALL(cudaMemcpy(this->dev_data, src, nBytes, cudaMemcpyHostToDevice),
+			   KMEANS_ERROR_COPY_TILE);
+	
+      } else {
+	/* the matrix data */	
+	int nBytes = (this->m - this->mMBStart[i]) * this->n * sizeof(TYPE);
+	TYPE * src = this->host_data + this->mMBStart[i] * this->n;
+	CUDA_API_SAFE_CALL(cudaMemcpy(this->dev_data, src, nBytes, cudaMemcpyHostToDevice),
+			   KMEANS_ERROR_COPY_TILE);
+	
+	if (this->mMBStart[j]!=0) {
+	  nBytes = this->mMBStart[j] * this->n * sizeof(TYPE);
+	  TYPE * dst = this->dev_data + (this->m - this->mMBStart[i]) * this->n;
+	  CUDA_API_SAFE_CALL(cudaMemcpy(dst, this->host_data, nBytes, cudaMemcpyHostToDevice),
+			     KMEANS_ERROR_COPY_TILE);
+	}
+      }
+    }      
 
     /* stop the timer */
     CUDA_API_SAFE_CALL(cudaEventRecord(this->stop, 0), KMEANS_ERROR_COPY_TILE);
@@ -570,7 +673,7 @@ kmeansErrorStatus kmeans<TYPE>::copyTileToDevice() {
 
 /* constructMiniBatch */
 template<class TYPE>
-kmeansErrorStatus kmeans<TYPE>::constructMiniBatch() {
+kmeansErrorStatus kmeans<TYPE>::constructMiniBatch(int index) {
 
   try {
 
@@ -579,58 +682,59 @@ kmeansErrorStatus kmeans<TYPE>::constructMiniBatch() {
     CUDA_API_SAFE_CALL(cudaEventRecord(this->start, 0), KMEANS_ERROR_CONSTRUCT_MINIBATCH);
 
     if (this->useMiniBatch) {
-      int i = this->m_mb_index;
-      int j = this->m_mb_index+1;
-
       /* reset the data */
-      CUDA_API_SAFE_CALL(cudaMemset(this->dev_data_mb, 0, this->m_mb_padded*this->n*sizeof(TYPE)),
+      CUDA_API_SAFE_CALL(cudaMemset(this->dev_data_mb, 0, 
+				    this->m_mb_padded*this->n*sizeof(TYPE)),
 			 KMEANS_ERROR_CONSTRUCT_MINIBATCH);
 
       CUDA_API_SAFE_CALL(cudaMemset(this->dev_data_norm_squared_mb, 0, 
 				    this->m_mb_padded*sizeof(TYPE)),
 			 KMEANS_ERROR_CONSTRUCT_MINIBATCH);
       
-      if (!this->mMBWrapTile[i]) {
-	/* the matrix data */
-	int nBytes = (this->mMBStart[j] - this->mMBStart[i]) * this->n * sizeof(TYPE);
-	TYPE * src = this->dev_data + this->mMBStart[i] * this->n;
-	CUDA_API_SAFE_CALL(cudaMemcpy(this->dev_data_mb, src, nBytes, cudaMemcpyDeviceToDevice),
-			   KMEANS_ERROR_CONSTRUCT_MINIBATCH);
+
+      /* the matrix data */
+      int nBytes = this->m_mb * this->n * sizeof(TYPE);
+      TYPE * src = this->dev_data + index * this->m_mb * this->n;
+      CUDA_API_SAFE_CALL(cudaMemcpy(this->dev_data_mb, src,
+				    nBytes, cudaMemcpyDeviceToDevice),
+			 KMEANS_ERROR_CONSTRUCT_MINIBATCH);
 
 
-	/* the norm squared data */
-	nBytes = (this->mMBStart[j] - this->mMBStart[i]) * sizeof(TYPE);
-	src = this->dev_data_norm_squared + this->mMBStart[i];
+      /* the norm squared data */
+      int i = this->m_mb_index;
+      int j = i+1;
+      
+      int start = this->mMBStart[i] + index * this->m_mb;
+      src = this->dev_data_norm_squared + start;
+	
+      if (!this->mMBWrapTile[i] || (this->mMBWrapTile[i] && start+this->m_mb<=this->m)) {
+	nBytes = this->m_mb * sizeof(TYPE);
 	CUDA_API_SAFE_CALL(cudaMemcpy(this->dev_data_norm_squared_mb, src, nBytes,
 				      cudaMemcpyDeviceToDevice), KMEANS_ERROR_CONSTRUCT_MINIBATCH);
 	
-      } else {
-	/* the matrix data */	
-	int nBytes = (this->m - this->mMBStart[i]) * this->n * sizeof(TYPE);
-	TYPE * src = this->dev_data + this->mMBStart[i] * this->n;
-	CUDA_API_SAFE_CALL(cudaMemcpy(this->dev_data_mb, src, nBytes, cudaMemcpyDeviceToDevice),
-			   KMEANS_ERROR_CONSTRUCT_MINIBATCH);
+      } else if (this->mMBWrapTile[i] && start>=this->m) {
 	
-	nBytes = this->mMBStart[j] * this->n * sizeof(TYPE);
-	TYPE * dst = this->dev_data_mb + (this->m - this->mMBStart[i]) * this->n;
-	CUDA_API_SAFE_CALL(cudaMemcpy(dst, this->dev_data, nBytes, cudaMemcpyDeviceToDevice),
-			   KMEANS_ERROR_CONSTRUCT_MINIBATCH);
+	start = start % this->m;
+	src = this->dev_data_norm_squared + start;
+	nBytes = this->m_mb * sizeof(TYPE);
+	CUDA_API_SAFE_CALL(cudaMemcpy(this->dev_data_norm_squared_mb, src, nBytes,
+				      cudaMemcpyDeviceToDevice), KMEANS_ERROR_CONSTRUCT_MINIBATCH);
 
-	/* the norm squared data */
-	nBytes = (this->m - this->mMBStart[i]) * sizeof(TYPE);
-	src = this->dev_data_norm_squared + this->mMBStart[i];
+      } else if (this->mMBWrapTile[i]) {
+	nBytes = (this->m - start) * sizeof(TYPE);
 	CUDA_API_SAFE_CALL(cudaMemcpy(this->dev_data_norm_squared_mb, src, nBytes,
 				      cudaMemcpyDeviceToDevice),
 			   KMEANS_ERROR_CONSTRUCT_MINIBATCH);
 
-	nBytes = this->mMBStart[j] * sizeof(TYPE);
-	dst = this->dev_data_norm_squared_mb + (this->m - this->mMBStart[i]);
+	
+	int mExtra = start + this->m_mb - this->m;
+	nBytes = mExtra * sizeof(TYPE);
+	TYPE * dst = this->dev_data_norm_squared_mb + (this->m - start);
 	CUDA_API_SAFE_CALL(cudaMemcpy(dst, this->dev_data_norm_squared, 
 				      nBytes, cudaMemcpyDeviceToDevice), 
 			   KMEANS_ERROR_CONSTRUCT_MINIBATCH);
 
-      }
-      this->m_mb_index++;
+      } 
     }
 
     /* stop the timer */
@@ -658,7 +762,7 @@ kmeansErrorStatus kmeans<TYPE>::initialize(TYPE * result) {
     for (int i=0; i<this->nTiles; ++i) {
       /* copy a chunk of the rows to the device */
       this->iTile = i;
-      errK = this->copyTileToDevice();
+      errK = this->copyTileToDevice(true);
       if (errK != KMEANS_SUCCESS) return KMEANS_ERROR_INITIALIZE;
 
       /* start the timer */
@@ -677,6 +781,21 @@ kmeansErrorStatus kmeans<TYPE>::initialize(TYPE * result) {
       this->dtRowNormalize += ((float).001)*DT;
     }
 
+
+#if 0
+    TYPE * temp = new TYPE[this->m];
+    CUDA_API_SAFE_CALL(cudaMemcpy(temp,this->dev_data_norm_squared,this->m*sizeof(TYPE),
+				  cudaMemcpyDeviceToHost), KMEANS_ERROR_INITIALIZE);
+    FILE * fid;
+    if (this->useMiniBatch)
+      fid = fopen("rowNormMB","wb");
+    else
+      fid = fopen("rowNorm","wb");
+
+    fwrite(temp,sizeof(TYPE),this->m,fid);
+    fclose(fid);
+    delete [] temp;
+#endif
 
     /* start the timer */
     float DT = 0.f;
@@ -861,24 +980,14 @@ kmeansErrorStatus kmeans<TYPE>::compactness() {
   kmeansCudaErrorStatus err = NO_ERROR;
   kmeansErrorStatus errK = KMEANS_SUCCESS;
 
-  /* loop over the tiles */
-  for (int i=0; i<this->nTiles; ++i) {
-    /* copy a chunk of the rows to the device */
-    this->iTile = i;
-    errK = this->copyTileToDevice();
-    if (errK != KMEANS_SUCCESS) return errK;
-
+  if (this->useMiniBatch) {
     /* start the timer */
     float DT = 0.f;
     CUDA_API_SAFE_CALL(cudaEventRecord(this->start, 0), KMEANS_ERROR_COMPACTNESS);
-
-    int m_start =   this->useMiniBatch ? 0          : this->mStart[this->iTile];
-    int m_compute = this->useMiniBatch ? this->m_mb : this->mTile[this->iTile];
-    TYPE * srcData = this->useMiniBatch ? this->dev_data_mb : this->dev_data;
     
     /* compute the compactness */
-    err = Compactness<TYPE>(m_start, m_compute, 
-			    this->n, this->k, srcData, this->dev_ccindex,
+    err = Compactness<TYPE>(0, this->m_mb, 
+			    this->n, this->k, this->dev_data_mb, this->dev_ccindex,
 			    this->dev_centers_transpose, this->dev_compactness);
     
     /* stop the timer */
@@ -886,6 +995,34 @@ kmeansErrorStatus kmeans<TYPE>::compactness() {
     CUDA_API_SAFE_CALL(cudaEventSynchronize(this->stop), KMEANS_ERROR_COMPACTNESS);
     CUDA_API_SAFE_CALL(cudaEventElapsedTime(&DT, this->start, this->stop), KMEANS_ERROR_COMPACTNESS);
     this->dtCompactness += ((float).001)*DT;
+
+  } else {
+    /* loop over the tiles */
+    for (int i=0; i<this->nTiles; ++i) {
+      /* copy a chunk of the rows to the device */
+      this->iTile = i;
+      errK = this->copyTileToDevice(true);
+      if (errK != KMEANS_SUCCESS) return errK;
+      
+      /* start the timer */
+      float DT = 0.f;
+      CUDA_API_SAFE_CALL(cudaEventRecord(this->start, 0), KMEANS_ERROR_COMPACTNESS);
+      
+      int m_start =   this->useMiniBatch ? 0          : this->mStart[this->iTile];
+      int m_compute = this->useMiniBatch ? this->m_mb : this->mTile[this->iTile];
+      TYPE * srcData = this->useMiniBatch ? this->dev_data_mb : this->dev_data;
+      
+      /* compute the compactness */
+      err = Compactness<TYPE>(m_start, m_compute, 
+			      this->n, this->k, srcData, this->dev_ccindex,
+			      this->dev_centers_transpose, this->dev_compactness);
+      
+      /* stop the timer */
+      CUDA_API_SAFE_CALL(cudaEventRecord(this->stop, 0), KMEANS_ERROR_COMPACTNESS);
+      CUDA_API_SAFE_CALL(cudaEventSynchronize(this->stop), KMEANS_ERROR_COMPACTNESS);
+      CUDA_API_SAFE_CALL(cudaEventElapsedTime(&DT, this->start, this->stop), KMEANS_ERROR_COMPACTNESS);
+      this->dtCompactness += ((float).001)*DT;
+    }
   }
 
 
@@ -988,6 +1125,18 @@ kmeansErrorStatus kmeans<TYPE>::reset() {
 template<class TYPE>
 kmeansErrorStatus kmeans<TYPE>::compute() {
 
+  kmeansErrorStatus err = KMEANS_SUCCESS;
+  if (this->useMiniBatch) 
+    err = this->computeMiniBatch();
+  else
+    err = this->computeStandard();
+  return err;
+}
+
+/* compute */
+template<class TYPE>
+kmeansErrorStatus kmeans<TYPE>::computeStandard() {
+
   try {
     kmeansErrorStatus err = KMEANS_SUCCESS;
     int iters = 0;
@@ -1011,11 +1160,11 @@ kmeansErrorStatus kmeans<TYPE>::compute() {
 	if (this->iTile<this->nTiles-1) this->lastTile=false;
 	else this->lastTile=true;
 
-	err = this->copyTileToDevice();
+	err = this->copyTileToDevice(true);
 	if (err != KMEANS_SUCCESS) return err;
 
 	/* construct the minibatch dataset */
-	err = constructMiniBatch();
+	err = constructMiniBatch(0);
 	if (err != KMEANS_SUCCESS) return err;
 
 	/* compute the closest center */
@@ -1051,6 +1200,73 @@ kmeansErrorStatus kmeans<TYPE>::compute() {
     return KMEANS_ERROR_COMPUTE;
   }
 }
+
+
+
+/* compute */
+template<class TYPE>
+kmeansErrorStatus kmeans<TYPE>::computeMiniBatch() {
+
+  try {
+    kmeansErrorStatus err = KMEANS_SUCCESS;
+    int iters = 0;
+    int MM = this->mMBStart.size()-1;
+    this->m_mb_index = 0;
+
+    while (iters<MM && this->relErr>this->criterion) {
+
+      /* copy a chunk of the rows to the device */
+      err = this->copyTileToDevice(false);
+      if (err != KMEANS_SUCCESS) return err;
+
+      /* loop over the tiles */
+      for (int i=0; i<this->num_mb_per_tile; ++i) {
+
+	/* set this to true by default ... assume 1 tile */
+	this->lastTile = true;
+
+	/* reset the data */
+	err = reset();
+	if (err != KMEANS_SUCCESS) return err;
+
+	/* construct the minibatch dataset */
+	err = constructMiniBatch(i);
+	if (err != KMEANS_SUCCESS) return err;
+
+	/* compute the closest center */
+	err = closestCenters();
+	if (err != KMEANS_SUCCESS) return err;
+	
+	/* compute the closest center */
+	err = clusterCenters();
+	if (err != KMEANS_SUCCESS) return err;
+
+	/* compute the compactness */
+	err = compactness();
+	if (err != KMEANS_SUCCESS) return err;
+
+	/* transpose the results */
+	err = transpose();
+	if (err != KMEANS_SUCCESS) return err;
+
+	/* compute the convergence statistic */
+	TYPE compactness_old = this->compactnessScore;
+	this->compactnessScore = this->host_compactness[0];
+	this->relErr = fabs(this->compactnessScore - compactness_old) / fabs(this->compactnessScore);
+	iters++;
+	cout << "iteration " << iters << "(" << i <<  ") relErr = " << this->relErr
+	     << " compactness = " << this->compactnessScore << endl;
+
+      }
+      this->m_mb_index++;
+    }
+    return KMEANS_SUCCESS;
+  }
+  catch (...) {
+    return KMEANS_ERROR_COMPUTE;
+  }
+}
+
 
 
 DllExport kmeansErrorStatus KMEANS_API computeKmeansF(const float * data, const int m, const int n,
@@ -1144,3 +1360,87 @@ DllExport kmeansErrorStatus KMEANS_API computeKmeansD(const double * data, const
   return err;
 }
 
+
+
+#if 0
+/* constructMiniBatch */
+template<class TYPE>
+kmeansErrorStatus kmeans<TYPE>::constructMiniBatch() {
+
+  try {
+
+    /* start the timer */
+    float DT = 0.f;
+    CUDA_API_SAFE_CALL(cudaEventRecord(this->start, 0), KMEANS_ERROR_CONSTRUCT_MINIBATCH);
+
+    if (this->useMiniBatch) {
+      int i = this->m_mb_index%this->num_mb_per_tile;
+      int j = (this->m_mb_index+1)%this->num_mb_per_tile;
+      int i = this->m_mb_inde;
+      int j = (this->m_mb_index+1);
+
+      /* reset the data */
+      CUDA_API_SAFE_CALL(cudaMemset(this->dev_data_mb, 0, this->m_mb_padded*this->n*sizeof(TYPE)),
+			 KMEANS_ERROR_CONSTRUCT_MINIBATCH);
+
+      CUDA_API_SAFE_CALL(cudaMemset(this->dev_data_norm_squared_mb, 0, 
+				    this->m_mb_padded*sizeof(TYPE)),
+			 KMEANS_ERROR_CONSTRUCT_MINIBATCH);
+      
+      if (!this->mMBWrapTile[i]) {
+	/* the matrix data */
+	int nBytes = (this->mMBStart[j] - this->mMBStart[i]) * this->n * sizeof(TYPE);
+	TYPE * src = this->dev_data + this->mMBStart[i] * this->n;
+	CUDA_API_SAFE_CALL(cudaMemcpy(this->dev_data_mb, src, nBytes, cudaMemcpyDeviceToDevice),
+			   KMEANS_ERROR_CONSTRUCT_MINIBATCH);
+
+
+	/* the norm squared data */
+	nBytes = (this->mMBStart[j] - this->mMBStart[i]) * sizeof(TYPE);
+	src = this->dev_data_norm_squared + this->mMBStart[i];
+	CUDA_API_SAFE_CALL(cudaMemcpy(this->dev_data_norm_squared_mb, src, nBytes,
+				      cudaMemcpyDeviceToDevice), KMEANS_ERROR_CONSTRUCT_MINIBATCH);
+	
+      } else {
+	/* the matrix data */	
+	int nBytes = (this->m - this->mMBStart[i]) * this->n * sizeof(TYPE);
+	TYPE * src = this->dev_data + this->mMBStart[i] * this->n;
+	CUDA_API_SAFE_CALL(cudaMemcpy(this->dev_data_mb, src, nBytes, cudaMemcpyDeviceToDevice),
+			   KMEANS_ERROR_CONSTRUCT_MINIBATCH);
+	
+	nBytes = this->mMBStart[j] * this->n * sizeof(TYPE);
+	TYPE * dst = this->dev_data_mb + (this->m - this->mMBStart[i]) * this->n;
+	CUDA_API_SAFE_CALL(cudaMemcpy(dst, this->dev_data, nBytes, cudaMemcpyDeviceToDevice),
+			   KMEANS_ERROR_CONSTRUCT_MINIBATCH);
+
+	/* the norm squared data */
+	nBytes = (this->m - this->mMBStart[i]) * sizeof(TYPE);
+	src = this->dev_data_norm_squared + this->mMBStart[i];
+	CUDA_API_SAFE_CALL(cudaMemcpy(this->dev_data_norm_squared_mb, src, nBytes,
+				      cudaMemcpyDeviceToDevice),
+			   KMEANS_ERROR_CONSTRUCT_MINIBATCH);
+
+	nBytes = this->mMBStart[j] * sizeof(TYPE);
+	dst = this->dev_data_norm_squared_mb + (this->m - this->mMBStart[i]);
+	CUDA_API_SAFE_CALL(cudaMemcpy(dst, this->dev_data_norm_squared, 
+				      nBytes, cudaMemcpyDeviceToDevice), 
+			   KMEANS_ERROR_CONSTRUCT_MINIBATCH);
+
+      }
+      this->m_mb_index++;
+    }
+
+    /* stop the timer */
+    CUDA_API_SAFE_CALL(cudaEventRecord(this->stop, 0), KMEANS_ERROR_CONSTRUCT_MINIBATCH);
+    CUDA_API_SAFE_CALL(cudaEventSynchronize(this->stop), KMEANS_ERROR_CONSTRUCT_MINIBATCH);
+    CUDA_API_SAFE_CALL(cudaEventElapsedTime(&DT, this->start, this->stop), KMEANS_ERROR_CONSTRUCT_MINIBATCH);
+    this->dtConstructMiniBatch += ((float).001)*DT;
+
+    return KMEANS_SUCCESS;
+  }
+  catch (...) {
+    return KMEANS_ERROR_CONSTRUCT_MINIBATCH;
+  }
+}
+
+#endif
