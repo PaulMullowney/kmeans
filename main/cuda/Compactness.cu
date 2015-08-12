@@ -36,18 +36,40 @@ __global__ void _dev_Compactness(const int m0, const int m, const int n, const i
     compactness[blockIdx.x] += shmem[0];
 }
 
+template<class TYPE, const int BLOCKSIZE>
+__global__ void _dev_CompactnessEnd(const int N, TYPE * __restrict__ compactness) {
+
+  __shared__ TYPE shmem[BLOCKSIZE];
+  shmem[threadIdx.x]=0;
+  __syncthreads();
+
+  for (int tidx=threadIdx.x; tidx<N; tidx+=blockDim.x)
+    shmem[threadIdx.x] += compactness[tidx];
+  __syncthreads();
+  
+  int tidx = threadIdx.x;
+  int shift = BLOCKSIZE >> 1;
+  while (shift>=1) {
+    if (tidx<shift) shmem[tidx] += shmem[tidx+shift];
+    __syncthreads();
+    shift >>= 1;
+  }
+  if (threadIdx.x==0)
+    compactness[0] = shmem[0];
+}
+
 template<class TYPE>
 DllExport kmeansCudaErrorStatus Compactness(const int m0, const int m,
-				  const int n, const int k,
-				  const TYPE * data, const int * indices, 
-				  const TYPE * centers, TYPE * compactness) {
+					    const bool lastTile, const int n, const int k,
+					    const TYPE * data, const int * indices, 
+					    const TYPE * centers, TYPE * compactness) {
   
   return NO_ERROR;
 }
 
 template<>
 kmeansCudaErrorStatus Compactness(const int m0, const int m,
-				  const int n, const int k,
+				  const bool lastTile, const int n, const int k,
 				  const float * data, const int * indices, 
 				  const float * centers, float * compactness) {
   
@@ -57,11 +79,16 @@ kmeansCudaErrorStatus Compactness(const int m0, const int m,
     dim3 block = dim3(nThreads,1,1);
 
     CUDA_SAFE_CALL(cudaDeviceSetSharedMemConfig(cudaSharedMemBankSizeFourByte),ERROR_COMPACTNESS);
-    CUDA_SAFE_CALL(cudaFuncSetCacheConfig(_dev_Compactness<float,nThreads>,cudaFuncCachePreferShared),ERROR_COMPACTNESS);
+    CUDA_SAFE_CALL(cudaFuncSetCacheConfig(_dev_Compactness<float,nThreads>,cudaFuncCachePreferNone),ERROR_COMPACTNESS);
 
     _dev_Compactness<float,nThreads><<<grid,block>>>(m0,m,n,k,data,indices,centers,compactness);
     CUDA_SAFE_CALL(cudaGetLastError(),ERROR_COMPACTNESS);
-    
+
+
+    if (lastTile) {
+      _dev_CompactnessEnd<float,nThreads><<<1,nThreads>>>(getMaxConcurrentBlocks(),compactness);
+      CUDA_SAFE_CALL(cudaGetLastError(),ERROR_COMPACTNESS);
+    }
   } catch (...) {
     return ERROR_COMPACTNESS;
   }
@@ -70,7 +97,7 @@ kmeansCudaErrorStatus Compactness(const int m0, const int m,
 
 template<>
 kmeansCudaErrorStatus Compactness(const int m0, const int m,
-				  const int n, const int k,
+				  const bool lastTile, const int n, const int k,
 				  const double * data, const int * indices, 
 				  const double * centers, double * compactness) {
   
@@ -84,7 +111,11 @@ kmeansCudaErrorStatus Compactness(const int m0, const int m,
 
     _dev_Compactness<double,nThreads><<<grid,block>>>(m0,m,n,k,data,indices,centers,compactness);
     CUDA_SAFE_CALL(cudaGetLastError(),ERROR_COMPACTNESS);
-    
+
+    if (lastTile) {
+      _dev_CompactnessEnd<double,nThreads><<<1,nThreads>>>(getMaxConcurrentBlocks(),compactness);
+      CUDA_SAFE_CALL(cudaGetLastError(),ERROR_COMPACTNESS);
+    }    
   } catch (...) {
     return ERROR_COMPACTNESS;
   }
@@ -92,15 +123,17 @@ kmeansCudaErrorStatus Compactness(const int m0, const int m,
 }
 
 /* Single precision C entry Point */
-kmeansCudaErrorStatus CompactnessF(const int m0, const int m, const int n, const int k,
+kmeansCudaErrorStatus CompactnessF(const int m0, const int m,
+				   const bool lastTile, const int n, const int k,
 				   const float * data, const int * indices, 
 				   const float * centers, float * compactness) {  
-  return Compactness<float>(m0,m,n,k,data,indices,centers,compactness);
+  return Compactness<float>(m0,m,lastTile,n,k,data,indices,centers,compactness);
 }
 
 /* Double precision C entry Point */
-kmeansCudaErrorStatus CompactnessD(const int m0, const int m, const int n, const int k,
+kmeansCudaErrorStatus CompactnessD(const int m0, const int m,
+				   const bool lastTile, const int n, const int k,
 				   const double * data, const int * indices, 
 				   const double * centers, double * compactness) {
-  return Compactness<double>(m0,m,n,k,data,indices,centers,compactness);
+  return Compactness<double>(m0,m,lastTile,n,k,data,indices,centers,compactness);
 }

@@ -290,6 +290,7 @@ extern "C" {
    *
    * @param m0 the starting data point in a compute tile
    * @param m the number of data in a compute tile
+   * @param lastTile whether or not this is the last tile
    * @param n the dimensionality of each data instance
    * @param k the number of cluster centers
    * @param data the input data. A C-order matrix of dimension m x n.
@@ -300,7 +301,8 @@ extern "C" {
    *
    * @return an error status upon return
    */
-  DllExport kmeansCudaErrorStatus CompactnessF(const int m0, const int m, const int n, const int k,
+  DllExport kmeansCudaErrorStatus CompactnessF(const int m0, const int m, 
+					       const bool lastTile, const int n, const int k,
 					       const float * data, const int * indices,
 					       const float * centers, float * compactness);
   
@@ -310,6 +312,7 @@ extern "C" {
    *
    * @param m0 the starting data point in a compute tile
    * @param m the number of data in a compute tile
+   * @param lastTile whether or not this is the last tile
    * @param n the dimensionality of each data instance
    * @param k the number of cluster centers
    * @param data the input data. A C-order matrix of dimension m x n.
@@ -320,7 +323,8 @@ extern "C" {
    *
    * @return an error status upon return
    */
-  DllExport kmeansCudaErrorStatus CompactnessD(const int m0, const int m, const int n, const int k,
+  DllExport kmeansCudaErrorStatus CompactnessD(const int m0, const int m, 
+					       const bool lastTile, const int n, const int k,
 					       const double * data, const int * indices,
 					       const double * centers, double * compactness);
 
@@ -452,6 +456,7 @@ DllExport kmeansCudaErrorStatus ClusterCenters(const int m0, const int m, const 
  *
  * @param m0 the starting data point in a compute tile
  * @param m the number of data in a compute tile
+ * @param lastTile whether or not this is the last tile
  * @param n the dimensionality of each data instance
  * @param k the number of cluster centers
  * @param data the input data. A C-order matrix of dimension m x n.
@@ -463,7 +468,8 @@ DllExport kmeansCudaErrorStatus ClusterCenters(const int m0, const int m, const 
  * @return an error status upon return
  */
 template<class TYPE>
-DllExport kmeansCudaErrorStatus Compactness(const int m0, const int m, const int n, const int k,
+DllExport kmeansCudaErrorStatus Compactness(const int m0, const int m, 
+					    const bool lastTile, const int n, const int k,
 					    const TYPE * data, const int * indices,
 					    const TYPE * centers, TYPE * compactness);
 

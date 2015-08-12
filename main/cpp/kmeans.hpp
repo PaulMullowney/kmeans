@@ -46,7 +46,7 @@ extern "C" {
     KMEANS_ERROR_TRANSPOSE = 6, /**< error in transpose */
     KMEANS_ERROR_RESET = 7, /**< error in reset */
     KMEANS_ERROR_COMPUTE = 8, /**< error in compute */
-    KMEANS_ERROR_MEMCPY = 9, /**< error in copying the data back to the host */
+    KMEANS_ERROR_GET_CENTERS = 9, /**< error in copying the data back to the host */
     KMEANS_ERROR_TILING = 10, /**< error in the tiling */
     KMEANS_ERROR_COPY_TILE = 11, /**< error copying a tile of data to the device */
     KMEANS_ERROR_CONSTRUCT_MINIBATCH = 12, /**< error in constructing the mini batch */
@@ -67,7 +67,7 @@ extern "C" {
     else if (err==KMEANS_ERROR_TRANSPOSE) return "error in transpose";
     else if (err==KMEANS_ERROR_RESET) return "error in reset";
     else if (err==KMEANS_ERROR_COMPUTE) return "error in compute";
-    else if (err==KMEANS_ERROR_MEMCPY) return "error in copying the data back to the host";
+    else if (err==KMEANS_ERROR_GET_CENTERS) return "error in copying the data back to the host";
     else if (err==KMEANS_ERROR_TILING) return "error in the tiling";
     else if (err==KMEANS_ERROR_COPY_TILE) return "error in copy tile";
     else if (err==KMEANS_ERROR_CONSTRUCT_MINIBATCH) return "error in constructing the minibatch";
@@ -342,6 +342,11 @@ private:
   bool useMiniBatch;
 
   /**
+   * whether or not to use the minibatch version of the algorithm
+   */
+  bool smallMiniBatch;
+
+  /**
    * the fraction of the data to use in mini batch
    */
   float miniBatchFraction;
@@ -408,6 +413,11 @@ private:
   /**
    * timer
    */
+  float dtConstruct;
+
+  /**
+   * timer
+   */
   float dtBuild;
 
   /**
@@ -424,6 +434,11 @@ private:
    * timer
    */
   float dtCopy;
+
+  /**
+   * timer
+   */
+  float dtGetCenters;
 
   /**
    * timer
@@ -591,7 +606,7 @@ private:
    * A host array of length maxConcurrentBlocks storing the contribution of each (new) cluster center
    * to the total compactness score
    */
-  vector<TYPE> host_compactness;
+  TYPE * host_compactness;
 
 };
 
