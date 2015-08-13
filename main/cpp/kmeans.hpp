@@ -146,6 +146,22 @@ inline void __cublasSafeCall(cublasStatus_t err, kmeansErrorStatus kmeansError, 
 }
 
 
+#define START_TIMER(dt,event,kmeans_err) startTimer(dt,event,kmeans_err)
+inline void startTimer(float& dt, cudaEvent_t e, kmeansErrorStatus kmeans_err) {
+  dt = 0.f;
+  CUDA_API_SAFE_CALL(cudaEventRecord(e, 0), kmeans_err);
+}
+
+#define STOP_TIMER(dt,start,stop,dtVar,kmeans_err) stopTimer(dt,start,stop,dtVar,kmeans_err)
+inline void stopTimer(float& dt, cudaEvent_t start, cudaEvent_t stop, float &dtVar, kmeansErrorStatus kmeans_err) {
+    /* stop the timer */
+    CUDA_API_SAFE_CALL(cudaEventRecord(stop, 0), kmeans_err);
+    CUDA_API_SAFE_CALL(cudaEventSynchronize(stop), kmeans_err);
+    CUDA_API_SAFE_CALL(cudaEventElapsedTime(&dt, start, stop), kmeans_err);
+    dtVar += ((float).001)*dt;
+}
+
+
 template<class TYPE>
 class kmeans {
 
@@ -310,11 +326,6 @@ private:
   int nTiles;
 
   /**
-   * the number of rows in a tile
-   */
-  int mChunk;
-
-  /**
    * the starting row in the matrix for the ClosestCenter, ClusterCenters and
    * Compactness calculations
    */
@@ -413,7 +424,7 @@ private:
   /**
    * timer
    */
-  float dtConstruct;
+  float DT;
 
   /**
    * timer
@@ -606,7 +617,7 @@ private:
    * A host array of length maxConcurrentBlocks storing the contribution of each (new) cluster center
    * to the total compactness score
    */
-  TYPE * host_compactness;
+  TYPE host_compactness;
 
 };
 

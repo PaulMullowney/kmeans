@@ -18,7 +18,7 @@ __global__ void _dev_ClosestCentersBegin(const TYPE * __restrict__ A, const TYPE
   int c = blockIdx.x*N_UNROLL*TILESIZE + threadIdx.x;
   VTYPE Creg[N_UNROLL];
   for (int n=0; n<N_UNROLL; ++n)
-	zero<VTYPE>(Creg[n]);
+    zero<VTYPE>(Creg[n]);
 
   /* matrix matrix multiply */
   TYPE * a = const_cast<TYPE *>(A) + r*dev_nColsA + threadIdx.x;
@@ -31,6 +31,7 @@ __global__ void _dev_ClosestCentersBegin(const TYPE * __restrict__ A, const TYPE
     printf("%d %d : %d, %d\n",threadIdx.x,threadIdx.y,
 	   threadIdx.x+(threadIdx.y&1)*blockDim.x,((threadIdx.y/2)*2));
 #endif
+
 
   multiply<TYPE,VTYPE,N_UNROLL,DELTA>(a, b, Creg, Ashmem, Bshmem);
 

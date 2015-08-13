@@ -1,4 +1,3 @@
-
 #include "kmeans.hpp"
 #include "gtest/gtest.h"
 
@@ -62,6 +61,18 @@ TEST_F(KmeansTests, TEST) {
 
   kmeansErrorStatus err = KMEANS_SUCCESS;
 
+  /* reset the device */
+  int dev;
+  cudaGetDevice(&dev);
+  cudaDeviceReset();
+
+  /* allocate timers */
+  cudaEvent_t start, stop;
+  float dt = 0;
+  cudaEventCreate(&start);
+  cudaEventCreate(&stop);
+  cudaEventRecord(start, 0);
+
   /* allocate data */
   float * data = (float *) malloc(m*n*sizeof(float));
   float * centers = (float *) malloc(k*n*sizeof(float));
@@ -84,6 +95,17 @@ TEST_F(KmeansTests, TEST) {
   /* free data */
   if (data) free(data);
   if (centers) free(centers);
+
+  cudaEventRecord(stop, 0);
+  cudaEventSynchronize(stop);
+  cudaEventElapsedTime(&dt, start, stop);
+  float dtTotal = ((float).001)*dt;
+
+  std::cout << "KMeansTests : " << "\n\tTotal DT = " << dtTotal << std::endl;
+
+  cudaEventDestroy(start);
+  cudaEventDestroy(stop);
+  
 }
 
 int main(int argc, char **argv) {
