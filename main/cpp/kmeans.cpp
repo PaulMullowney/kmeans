@@ -74,6 +74,8 @@ kmeans<TYPE>::kmeans(const int m, const int n, const int k,
   } else {
     this->useMiniBatch = false;
     this->miniBatchFraction = 1.0f;
+    this->m_mb = 0;
+    this->m_mb_padded = 0;
   }
     
   /* timing data */
@@ -137,19 +139,6 @@ kmeans<TYPE>::~kmeans() {
 
   if (this->dev_ccindex) {
     if (cudaSuccess != cudaFree(this->dev_ccindex))
-      printf("%s(%i) : CUDA Runtime API error : %s.\n",
-	     __FILE__, __LINE__, cudaGetErrorString(cudaGetLastError()));
-  }
-
-  /* mini batch data structures */
-  if (this->dev_data_mb) {
-    if (cudaSuccess != cudaFree(this->dev_data_mb))
-      printf("%s(%i) : CUDA Runtime API error : %s.\n",
-	     __FILE__, __LINE__, cudaGetErrorString(cudaGetLastError()));
-  }
-
-  if (this->dev_data_norm_squared_mb) {
-    if (cudaSuccess != cudaFree(this->dev_data_norm_squared_mb))
       printf("%s(%i) : CUDA Runtime API error : %s.\n",
 	     __FILE__, __LINE__, cudaGetErrorString(cudaGetLastError()));
   }
@@ -291,7 +280,7 @@ kmeansErrorStatus kmeans<TYPE>::computeTiling() {
     int mCompute = this->useMiniBatch ? this->m_mb : this->m;
     int mComputePadded = this->useMiniBatch ? this->m_mb_padded : this->m_padded;
 
-    fixedMemory += (uint64_t) (this->m * sizeof(TYPE));
+    fixedMemory += (uint64_t) (2*this->m * sizeof(TYPE));
     fixedMemory += (uint64_t) (this->m * sizeof(int));
     fixedMemory += (uint64_t) (this->n * this->k * sizeof(TYPE));
     fixedMemory += (uint64_t) (this->n * this->k * sizeof(TYPE));
@@ -300,8 +289,6 @@ kmeansErrorStatus kmeans<TYPE>::computeTiling() {
     fixedMemory += (uint64_t) (this->k * sizeof(int));
     fixedMemory += (uint64_t) (getMaxConcurrentBlocks() * this->k * sizeof(int));
     fixedMemory += (uint64_t) (getMaxConcurrentBlocks() * sizeof(TYPE));
-    if (this->useMiniBatch)
-      fixedMemory += (uint64_t) (this->m_mb_padded * this->n * sizeof(TYPE));
     
     /* get the device memory */
     size_t freeMemory = 0;
@@ -333,7 +320,10 @@ kmeansErrorStatus kmeans<TYPE>::computeTiling() {
       /*  Using Minibatch */
       /********************/
 
-      varMemoryArray = (uint64_t) (this->m_padded * this->n * sizeof(TYPE));
+      int MM = this->m + this->m_mb;
+      int MMpadded = ((MM + this->factor - 1) / this->factor)*this->factor;
+
+      varMemoryArray = (uint64_t) (MMpadded * this->n * sizeof(TYPE));
       requiredMemory =  varMemoryArray + varMemoryMMResult + fixedMemory;
 
       if (requiredMemory <= .95*freeMemory) {
@@ -532,11 +522,7 @@ kmeansErrorStatus kmeans<TYPE>::buildData(const TYPE * data) {
 
     int mCompute = this->useMiniBatch ? this->m_mb : this->m;
     int mComputePadded = this->useMiniBatch ? this->m_mb_padded : this->m_padded;
-
-    /* norm squared of each row of the input data */
-    uint64_t nBytes = this->m * sizeof(TYPE);
-    CUDA_API_SAFE_CALL(cudaMalloc((void**)&(this->dev_data_norm_squared), nBytes), KMEANS_ERROR_BUILDDATA);
-    CUDA_API_SAFE_CALL(cudaMemset(this->dev_data_norm_squared, 0, nBytes), KMEANS_ERROR_BUILDDATA);
+    uint64_t nBytes = 0;
 
     /* the index of the closest cluster center */
     nBytes = this->m * sizeof(int);
@@ -583,20 +569,39 @@ kmeansErrorStatus kmeans<TYPE>::buildData(const TYPE * data) {
     /*********************************/
     CUBLAS_API_SAFE_CALL(cublasCreate(&this->handle), KMEANS_ERROR_BUILDDATA);
 
+
+    /******************************/
+    /* array and vector norm data */
+    /******************************/
+
     /* input data */
-    int arrayRows = 0;
+    int matrixRows = 0;
+    int vectorRows = 0;
     if (this->useMiniBatch) {
-      if (this->smallMiniBatch)
-	arrayRows = this->m_padded;
-      else
-	arrayRows = ((this->num_mb_per_tile*this->m_mb + this->factor - 1) / this->factor)*this->factor;
+      if (this->smallMiniBatch) {
+	int MM = this->m + this->m_mb;
+	matrixRows = ((MM + this->factor - 1) / this->factor)*this->factor;
+	vectorRows = matrixRows;
+      } else {
+	int MM = this->m + this->num_mb_per_tile*this->m_mb;
+	matrixRows = ((this->num_mb_per_tile*this->m_mb + this->factor - 1) / this->factor)*this->factor;
+	vectorRows = ((MM + this->factor - 1) / this->factor)*this->factor;
+      }	
     } else {
-      arrayRows = this->m_padded;
+      matrixRows = this->m_padded;
+      vectorRows = this->m_padded;
     }
 
-    nBytes = arrayRows * this->n * sizeof(TYPE);
+    /* input data */
+    nBytes = matrixRows * this->n * sizeof(TYPE);
     CUDA_API_SAFE_CALL(cudaMalloc((void**)&(this->dev_data), nBytes), KMEANS_ERROR_BUILDDATA);
     CUDA_API_SAFE_CALL(cudaMemset(this->dev_data, 0, nBytes), KMEANS_ERROR_BUILDDATA);
+
+    /* norm squared of each row of the input data */
+    nBytes = vectorRows * sizeof(TYPE);
+    CUDA_API_SAFE_CALL(cudaMalloc((void**)&(this->dev_data_norm_squared), nBytes), KMEANS_ERROR_BUILDDATA);
+    CUDA_API_SAFE_CALL(cudaMemset(this->dev_data_norm_squared, 0, nBytes), KMEANS_ERROR_BUILDDATA);
+
 
     /* allocate space for the result of the matrix matrix multiply */
     if (this->useCUBLAS) {      
@@ -614,22 +619,6 @@ kmeansErrorStatus kmeans<TYPE>::buildData(const TYPE * data) {
       nBytes = mComputePadded * this->p * sizeof(int);
       CUDA_API_SAFE_CALL(cudaMalloc((void**)&(this->dev_partial_reduction_indices), nBytes), KMEANS_ERROR_BUILDDATA);
       CUDA_API_SAFE_CALL(cudaMemset(this->dev_partial_reduction_indices, 0, nBytes), KMEANS_ERROR_BUILDDATA);
-    }
-
-    /******************************/
-    /* mini batch data structures */
-    /******************************/
-    if (this->useMiniBatch) {
-      nBytes = mComputePadded * this->n * sizeof(TYPE);
-      CUDA_API_SAFE_CALL(cudaMalloc((void**)&(this->dev_data_mb), nBytes), KMEANS_ERROR_BUILDDATA);
-      CUDA_API_SAFE_CALL(cudaMemset(this->dev_data_mb, 0, nBytes), KMEANS_ERROR_BUILDDATA);
-
-      /* norm squared of each row of the input data */
-      nBytes = mComputePadded * sizeof(TYPE);
-      CUDA_API_SAFE_CALL(cudaMalloc((void**)&(this->dev_data_norm_squared_mb), nBytes),
-			 KMEANS_ERROR_BUILDDATA);
-      CUDA_API_SAFE_CALL(cudaMemset(this->dev_data_norm_squared_mb, 0, nBytes),
-			 KMEANS_ERROR_BUILDDATA);
     }
 
     /* stop the timer */
@@ -660,6 +649,15 @@ kmeansErrorStatus kmeans<TYPE>::copyTileToDevice(bool standardApproach) {
 			   KMEANS_ERROR_COPY_TILE);
       }
       if (this->nTiles==1) this->entireDatasetIsOnDevice=true;
+
+      /* copy the "Extra" portion */
+      if (this->smallMiniBatch) {
+	const TYPE * src = this->dev_data;
+	TYPE * dst = this->dev_data + this->m*this->n;
+	int nBytes = this->m_mb*this->n*sizeof(TYPE);
+	CUDA_API_SAFE_CALL(cudaMemcpy(dst,src,nBytes,cudaMemcpyDeviceToDevice),
+			   KMEANS_ERROR_COPY_TILE);
+      }
     } else {
 
       int i = this->m_mb_index;
@@ -707,60 +705,16 @@ kmeansErrorStatus kmeans<TYPE>::constructMiniBatch(int index) {
     /* start the timer */
     START_TIMER(this->DT,this->start,KMEANS_ERROR_CONSTRUCT_MINIBATCH);
 
-    /* reset the data */
-    CUDA_API_SAFE_CALL(cudaMemset(this->dev_data_mb, 0, 
-				  this->m_mb_padded*this->n*sizeof(TYPE)),
-		       KMEANS_ERROR_CONSTRUCT_MINIBATCH);
-    
-    CUDA_API_SAFE_CALL(cudaMemset(this->dev_data_norm_squared_mb, 0, 
-				  this->m_mb_padded*sizeof(TYPE)),
-		       KMEANS_ERROR_CONSTRUCT_MINIBATCH);
-      
-    
-    /* the matrix data */
-    int nBytes = this->m_mb * this->n * sizeof(TYPE);
-    TYPE * src = this->dev_data + index * this->m_mb * this->n;
-    CUDA_API_SAFE_CALL(cudaMemcpy(this->dev_data_mb, src,
-				  nBytes, cudaMemcpyDeviceToDevice),
-		       KMEANS_ERROR_CONSTRUCT_MINIBATCH);
-    
-    
-    /* the norm squared data */
-    int i = this->m_mb_index;
-    int j = i+1;
-    
-    int start = this->mMBStart[i] + index * this->m_mb;
-    src = this->dev_data_norm_squared + start;
-    
-    if (!this->mMBWrapTile[i] || (this->mMBWrapTile[i] && start+this->m_mb<=this->m)) {
-      nBytes = this->m_mb * sizeof(TYPE);
-	CUDA_API_SAFE_CALL(cudaMemcpy(this->dev_data_norm_squared_mb, src, nBytes,
-				      cudaMemcpyDeviceToDevice), KMEANS_ERROR_CONSTRUCT_MINIBATCH);
-	
-    } else if (this->mMBWrapTile[i] && start>=this->m) {
-      
-      start = start % this->m;
-      src = this->dev_data_norm_squared + start;
-      nBytes = this->m_mb * sizeof(TYPE);
-      CUDA_API_SAFE_CALL(cudaMemcpy(this->dev_data_norm_squared_mb, src, nBytes,
-				    cudaMemcpyDeviceToDevice), KMEANS_ERROR_CONSTRUCT_MINIBATCH);
-      
-    } else if (this->mMBWrapTile[i]) {
-      nBytes = (this->m - start) * sizeof(TYPE);
-      CUDA_API_SAFE_CALL(cudaMemcpy(this->dev_data_norm_squared_mb, src, nBytes,
-				    cudaMemcpyDeviceToDevice),
-			 KMEANS_ERROR_CONSTRUCT_MINIBATCH);
-      
-      
-      int mExtra = start + this->m_mb - this->m;
-      nBytes = mExtra * sizeof(TYPE);
-      TYPE * dst = this->dev_data_norm_squared_mb + (this->m - start);
-      CUDA_API_SAFE_CALL(cudaMemcpy(dst, this->dev_data_norm_squared, 
-				    nBytes, cudaMemcpyDeviceToDevice), 
-			 KMEANS_ERROR_CONSTRUCT_MINIBATCH);
-      
-    } 
+    int ind1 = (this->smallMiniBatch ? this->mMBStart[this->m_mb_index] : 0)
+      + index*this->m_mb;
 
+    int ind2 = this->mMBStart[this->m_mb_index] + index*this->m_mb;
+
+    /* set the pointers */
+    this->dev_data_mb = this->dev_data + ind1 * this->n;
+    this->dev_data_norm_squared_mb = this->dev_data_norm_squared + ind2;
+
+    
     /* stop the timer */
     STOP_TIMER(this->DT,this->start,this->stop,this->dtConstructMiniBatch,KMEANS_ERROR_CONSTRUCT_MINIBATCH);
     return KMEANS_SUCCESS;
@@ -815,6 +769,15 @@ kmeansErrorStatus kmeans<TYPE>::initialize(TYPE * result) {
 
     /* start the timer */
     START_TIMER(this->DT,this->start,KMEANS_ERROR_INITIALIZE);
+
+    /* copy the "Extra" portion */
+    if (this->smallMiniBatch) {
+      const TYPE * src = this->dev_data_norm_squared;
+      TYPE * dst = this->dev_data_norm_squared + this->m;
+      int nBytes = this->num_mb_per_tile*this->m_mb*sizeof(TYPE);
+      CUDA_API_SAFE_CALL(cudaMemcpy(dst,src,nBytes,cudaMemcpyDeviceToDevice),
+			 KMEANS_ERROR_INITIALIZE);
+    }
 
     /* initialize the cluster centers */
     vector<int> points(0);
@@ -1106,9 +1069,8 @@ kmeansErrorStatus kmeans<TYPE>::computeStandard() {
   try {
     kmeansErrorStatus err = KMEANS_SUCCESS;
     int iters = 0;
-    int MM = this->useMiniBatch ? this->mMBStart.size()-1 : this->maxIters;
 
-    while (iters<MM && this->relErr>this->criterion) {
+    while (iters<this->maxIters && this->relErr>this->criterion) {
 
       /* compute the closest center */
       err = reset();
@@ -1172,11 +1134,10 @@ kmeansErrorStatus kmeans<TYPE>::computeMiniBatch() {
   try {
     kmeansErrorStatus err = KMEANS_SUCCESS;
     int iters = 0;
-    int MM = this->mMBStart.size()-1;
     this->m_mb_index = 0;
     this->iTile = 0;
 
-    while (iters<MM && this->relErr>this->criterion) {
+    while (iters<this->maxIters && this->relErr>this->criterion) {
 
       /* copy a chunk of the rows to the device */
       err = this->copyTileToDevice(false);
@@ -1218,7 +1179,7 @@ kmeansErrorStatus kmeans<TYPE>::computeMiniBatch() {
 	iters++;
 	cout << "iteration " << iters << "(" << i <<  ") relErr = " << this->relErr
 	     << " compactness = " << this->compactnessScore << endl;
-
+	if (this->relErr<=this->criterion) return KMEANS_SUCCESS;
       }
       this->m_mb_index++;
     }
