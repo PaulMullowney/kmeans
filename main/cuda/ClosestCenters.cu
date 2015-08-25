@@ -2,7 +2,6 @@
 
 #include "loadVector.hcu"
 #include "reduction.hcu"
-#include "reductionT.hcu"
 #include "multiply.hcu"
 
 template<class TYPE, class VTYPE, const int N_UNROLL, const int DELTA>
@@ -37,7 +36,7 @@ __global__ void _dev_ClosestCentersBeginT(const TYPE * __restrict__ A, const TYP
   __syncthreads();
 
   /* perform the partial reduction over each row in the shmem buffers */
-  _dev_reductionT<VTYPE>(c, Creg, L2normB, Ashmem, Bshmem); 
+  _dev_reduction<TILESIZEX,TILESIZEX>(c, Creg, L2normB, Ashmem, Bshmem); 
 
   a = reinterpret_cast<TYPE *>(&(Ashmem[threadIdx.y][0]));
   b = reinterpret_cast<TYPE *>(&(Bshmem[threadIdx.y][0]));
@@ -85,7 +84,7 @@ __global__ void _dev_ClosestCentersBegin(const TYPE * __restrict__ A, const TYPE
   __syncthreads();
 
   /* perform the partial reduction over each row in the shmem buffers */
-  _dev_reduction<VTYPE>(c, Creg, L2normB, Ashmem, Bshmem); 
+  _dev_reduction<TILESIZEY,TILESIZEX>(c, Creg, L2normB, Ashmem, Bshmem);
 
   a = reinterpret_cast<TYPE *>(&(Ashmem[threadIdx.y][0]));
   b = reinterpret_cast<TYPE *>(&(Bshmem[threadIdx.y][0]));

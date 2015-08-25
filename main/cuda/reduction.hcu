@@ -57,18 +57,12 @@ __inline__ __device__ double4 fmind(double4 a, double4 b, double4 ia, double4 ib
 		      fmind(a.w,b.w,ia.w,ib.w,i.w));
 }
 
-template<class VTYPE>
-__device__ __inline__ void _dev_reduction(const int c, VTYPE * Creg,
-					  VTYPE L2normB[TILESIZE], 
-					  VTYPE A[TILESIZEY][TILESIZEY],
-					  VTYPE B[TILESIZEY][TILESIZEX]) {
-}
 
-template<>
+template<const int T1, const int T2>
 __device__ __inline__ void _dev_reduction(const int c, float2 * Creg,
 					  float2 L2normB[TILESIZE],
-					  float2 A[TILESIZEY][TILESIZEY],
-					  float2 B[TILESIZEY][TILESIZEX]) {
+					  float2 A[TILESIZEY][T1],
+					  float2 B[TILESIZEY][T2]) {
 
   int tidx = threadIdx.x;
   int tidy = threadIdx.y;
@@ -112,11 +106,11 @@ __device__ __inline__ void _dev_reduction(const int c, float2 * Creg,
   __syncthreads();
 }
 
-template<>
+template<const int T1, const int T2>
 __device__ __inline__ void _dev_reduction(const int c, double2 * Creg,
 					  double2 L2normB[TILESIZE],
-					  double2 A[TILESIZEY][TILESIZEY],
-					  double2 B[TILESIZEY][TILESIZEX]) {
+					  double2 A[TILESIZEY][T1],
+					  double2 B[TILESIZEY][T2]) {
 
   int tidx = threadIdx.x;
   int tidy = threadIdx.y;
@@ -160,11 +154,11 @@ __device__ __inline__ void _dev_reduction(const int c, double2 * Creg,
   __syncthreads();
 }
 
-template<>
+template<const int T1, const int T2>
 __device__ __inline__ void _dev_reduction(const int c, float4 * Creg,
 					  float4 L2normB[TILESIZE],
-					  float4 A[TILESIZEY][TILESIZEY],
-					  float4 B[TILESIZEY][TILESIZEX]) {
+					  float4 A[TILESIZEY][T1],
+					  float4 B[TILESIZEY][T2]) {
 
   int tidx = threadIdx.x;
   int tidy = threadIdx.y;
@@ -213,11 +207,11 @@ __device__ __inline__ void _dev_reduction(const int c, float4 * Creg,
   __syncthreads();
 }
 
-template<>
+template<const int T1, const int T2>
 __device__ __inline__ void _dev_reduction(const int c, double4 * Creg,
 					  double4 L2normB[TILESIZE],
-					  double4 A[TILESIZEY][TILESIZEY],
-					  double4 B[TILESIZEY][TILESIZEX]) {
+					  double4 A[TILESIZEY][T1],
+					  double4 B[TILESIZEY][T2]) {
 
   int tidx = threadIdx.x;
   int tidy = threadIdx.y;
@@ -265,6 +259,7 @@ __device__ __inline__ void _dev_reduction(const int c, double4 * Creg,
   }
   __syncthreads();
 }
+
 
 #endif /* !defined(_REDUCTION_HCU_) */
 

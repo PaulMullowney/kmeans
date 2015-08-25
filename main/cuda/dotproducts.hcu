@@ -1,15 +1,10 @@
 #if !defined(_DOT_PRODUCTS_HCU_)
 #define _DOT_PRODUCTS_HCU_
 
-template<class VTYPE>
-__device__ __inline__ void _dev_dotproducts(VTYPE A[TILESIZEY][TILESIZEY],
-					    VTYPE B[TILESIZEY][TILESIZEX],
-					    VTYPE * Creg) {
-}
 
-template<>
-__device__ __inline__ void _dev_dotproducts(float2 A[TILESIZEY][TILESIZEY],
-					    float2 B[TILESIZEY][TILESIZEX],
+template<const int T1, const int T2>
+__device__ __inline__ void _dev_dotproducts(float2 A[TILESIZEY][T1],
+					    float2 B[TILESIZEY][T2],
 					    float2 * Creg) {
 
   float2 t1, t2;
@@ -21,9 +16,9 @@ __device__ __inline__ void _dev_dotproducts(float2 A[TILESIZEY][TILESIZEY],
   }
 }
 
-template<>
-__device__ __inline__ void _dev_dotproducts(double2 A[TILESIZEY][TILESIZEY],
-					    double2 B[TILESIZEY][TILESIZEX],
+template<const int T1, const int T2>
+__device__ __inline__ void _dev_dotproducts(double2 A[TILESIZEY][T1],
+					    double2 B[TILESIZEY][T2],
 					    double2 * Creg) {
 
   double2 t1, t2;
@@ -36,9 +31,9 @@ __device__ __inline__ void _dev_dotproducts(double2 A[TILESIZEY][TILESIZEY],
 }
 
 
-template<>
-__device__ __inline__ void _dev_dotproducts(float4 A[TILESIZEY][TILESIZEY],
-					    float4 B[TILESIZEY][TILESIZEX],
+template<const int T1, const int T2>
+__device__ __inline__ void _dev_dotproducts(float4 A[TILESIZEY][T1],
+					    float4 B[TILESIZEY][T2],
 					    float4 * Creg) {
 #if 1
 
@@ -89,9 +84,9 @@ __device__ __inline__ void _dev_dotproducts(float4 A[TILESIZEY][TILESIZEY],
 }
 
 
-template<>
-__device__ __inline__ void _dev_dotproducts(double4 A[TILESIZEY][TILESIZEY],
-					    double4 B[TILESIZEY][TILESIZEX],
+template<const int T1, const int T2>
+__device__ __inline__ void _dev_dotproducts(double4 A[TILESIZEY][T1],
+					    double4 B[TILESIZEY][T2],
 					    double4 * Creg) {
 
   double4 t1, t2;
@@ -106,10 +101,10 @@ __device__ __inline__ void _dev_dotproducts(double4 A[TILESIZEY][TILESIZEY],
   }
 }
 
-template<const int LENGTH>
-__device__ __inline__ void _dev_dotproducts(float4 A[TILESIZEY][TILESIZEY],
-					    float4 B[TILESIZEY][TILESIZEX],
-					    float4 * Creg) {
+template<const int LENGTH, const int T1, const int T2>
+__device__ __inline__ void _dev_dotproductsF(float4 A[TILESIZEY][T1],
+					     float4 B[TILESIZEY][T2],
+					     float4 * Creg) {
   float4 t1, t2;
 #pragma unroll
   for (int k=0; k<LENGTH; ++k) {
@@ -124,10 +119,10 @@ __device__ __inline__ void _dev_dotproducts(float4 A[TILESIZEY][TILESIZEY],
 }
 
 
-template<const int LENGTH>
-__device__ __inline__ void _dev_dotproducts(double4 A[TILESIZEY][TILESIZEY],
-					    double4 B[TILESIZEY][TILESIZEX],
-					    double4 * Creg) {
+template<const int LENGTH, const int T1, const int T2>
+__device__ __inline__ void _dev_dotproductsF(double4 A[TILESIZEY][T1],
+					     double4 B[TILESIZEY][T2],
+					     double4 * Creg) {
   double4 t1, t2;
   for (int k=0; k<LENGTH; ++k) {
     t1 = A[threadIdx.y][k];
@@ -139,10 +134,10 @@ __device__ __inline__ void _dev_dotproducts(double4 A[TILESIZEY][TILESIZEY],
   }
 }
 
-template<const int LENGTH>
-__device__ __inline__ void _dev_dotproducts(float2 A[TILESIZEY][TILESIZEY],
-					    float2 B[TILESIZEY][TILESIZEX],
-					    float2 * Creg) {
+template<const int LENGTH, const int T1, const int T2>
+__device__ __inline__ void _dev_dotproductsF(float2 A[TILESIZEY][T1],
+					     float2 B[TILESIZEY][T2],
+					     float2 * Creg) {
   float2 t1, t2;
   for (int k=0; k<LENGTH; ++k) {
     t1 = A[threadIdx.y][k];
@@ -152,10 +147,10 @@ __device__ __inline__ void _dev_dotproducts(float2 A[TILESIZEY][TILESIZEY],
   }
 }
 
-template<const int LENGTH>
-__device__ __inline__ void _dev_dotproducts(double2 A[TILESIZEY][TILESIZEY],
-					    double2 B[TILESIZEY][TILESIZEX],
-					    double2 * Creg) {
+template<const int LENGTH, const int T1, const int T2>
+__device__ __inline__ void _dev_dotproductsF(double2 A[TILESIZEY][T1],
+					     double2 B[TILESIZEY][T2],
+					     double2 * Creg) {
   double2 t1, t2;
   for (int k=0; k<LENGTH; ++k) {
     t1 = A[threadIdx.y][k];
@@ -164,7 +159,6 @@ __device__ __inline__ void _dev_dotproducts(double2 A[TILESIZEY][TILESIZEY],
     Creg[1] = fma<double,double2>(t1.y,t2,Creg[1]);
   }
 }
-
 
 
 #endif /* !defined(_DOT_PRODUCTS_HCU_) */

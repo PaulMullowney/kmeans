@@ -6,7 +6,6 @@
 #include "loadB.hcu"
 #include "fma.hcu"
 #include "dotproducts.hcu"
-#include "dotproductsT.hcu"
 #include "writeResults.hcu"
 
 
@@ -33,7 +32,7 @@ __device__ void multiplyT(TYPE * __restrict__ A, TYPE * __restrict__ B, VTYPE* C
     if (n<dev_N || threadIdx.y<DELTA) Breg = _dev_loadB<TYPE,VTYPE>(B);  
 
     /* compute the dot products */
-    _dev_dotproducts<VTYPE>(Ashmem,Bshmem,Creg);
+    _dev_dotproducts<TILESIZEX,TILESIZEX>(Ashmem,Bshmem,Creg);
     __syncthreads();
   }
 
@@ -43,7 +42,7 @@ __device__ void multiplyT(TYPE * __restrict__ A, TYPE * __restrict__ B, VTYPE* C
   __syncthreads();
   
   /* compute the dot products */
-  _dev_dotproducts<DELTA>(Ashmem,Bshmem,Creg);
+  _dev_dotproductsF<DELTA,TILESIZEX,TILESIZEX>(Ashmem,Bshmem,Creg);
 }
 
 template<class TYPE, class VTYPE, const int N_UNROLL, const int DELTA>
@@ -69,7 +68,7 @@ __device__ void multiply(TYPE * __restrict__ A, TYPE * __restrict__ B, VTYPE* Cr
     if (n<dev_N || threadIdx.y<DELTA) Breg = _dev_loadB<TYPE,VTYPE>(B);  
 
     /* compute the dot products */
-    _dev_dotproducts<VTYPE>(Ashmem,Bshmem,Creg);
+    _dev_dotproducts<TILESIZEY,TILESIZEX>(Ashmem,Bshmem,Creg);
     __syncthreads();
   }
 
@@ -79,7 +78,7 @@ __device__ void multiply(TYPE * __restrict__ A, TYPE * __restrict__ B, VTYPE* Cr
   __syncthreads();
   
   /* compute the dot products */
-  _dev_dotproducts<DELTA>(Ashmem,Bshmem,Creg);
+  _dev_dotproductsF<DELTA,TILESIZEY,TILESIZEX>(Ashmem,Bshmem,Creg);
 }
 
 
