@@ -14,6 +14,7 @@ class KmeansTests : public testing::Test {
   int k;
   int nIters;
   int useCublas;
+  bool useTranspose;
   float rtol;
   float fraction;
 
@@ -36,8 +37,9 @@ class KmeansTests : public testing::Test {
       k = atoi(my_argv[4]);
       nIters = atoi(my_argv[5]);
       useCublas = atoi(my_argv[6]);
-      rtol = atof(my_argv[7]);
-      fraction = atof(my_argv[8]);
+      useTranspose = atoi(my_argv[7]);
+      rtol = atof(my_argv[8]);
+      fraction = atof(my_argv[9]);
     } else {
       fileName = string("mat-sift");
       m = 898790;
@@ -45,6 +47,7 @@ class KmeansTests : public testing::Test {
       k = 256;
       nIters = 50;
       useCublas = 0;
+      useTranspose = false;
       rtol = 1.e-5;
       fraction = 1.0;
     }
@@ -83,11 +86,15 @@ TEST_F(KmeansTests, TEST) {
   ASSERT_EQ(nread, m*n);
   fclose(fid);
 
+  //fid = fopen("mat-hog.small","wb");
+  //fwrite(data, sizeof(float), (m*n)/2, fid);
+  //fclose(fid);
+
   /* initialize centers to 0 */
   memset(centers, 0, sizeof(float)*k*n);
 
   /* run kmeans */
-  err = computeKmeansF(data,m,n,k,rtol,nIters,1,0,useCublas,centers,fraction);
+  err = computeKmeansF(data,m,n,k,rtol,nIters,1,0,useCublas,(useTranspose==1 ? true : false),centers,fraction);
   if (err!=KMEANS_SUCCESS) {
     cout << "Kmeans(CUBLAS) internal error '" << kmeansGetErrorString(err) << "'" <<  endl;
   }

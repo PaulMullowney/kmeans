@@ -6,8 +6,45 @@
 #include "loadB.hcu"
 #include "fma.hcu"
 #include "dotproducts.hcu"
+#include "dotproductsT.hcu"
 #include "writeResults.hcu"
 
+
+template<class TYPE, class VTYPE, const int N_UNROLL, const int DELTA>
+__device__ void multiplyT(TYPE * __restrict__ A, TYPE * __restrict__ B, VTYPE* Creg,
+			  VTYPE Ashmem[TILESIZEY][TILESIZEX],
+			  VTYPE Bshmem[TILESIZEY][TILESIZEX]) {
+
+  /* prefetch the first tiles */
+  VTYPE Areg = _dev_loadAT<TYPE,VTYPE>(A);
+  VTYPE Breg = _dev_loadB<TYPE,VTYPE>(B);
+
+  /* loop over the interior tiles */
+  for (int n=1; n<=dev_N; ++n) {
+    /* transfer A registers to shmem */
+    Ashmem[threadIdx.x][threadIdx.y] = Areg;
+    Bshmem[threadIdx.x][threadIdx.y] = Breg;
+    __syncthreads();
+    
+    /* load the next A tiles */
+    A+=TILESIZE*dev_nRowsAPadded;
+    B+=TILESIZE*dev_nColsB;
+    if (n<dev_N || threadIdx.y<DELTA) Areg = _dev_loadAT<TYPE,VTYPE>(A);
+    if (n<dev_N || threadIdx.y<DELTA) Breg = _dev_loadB<TYPE,VTYPE>(B);  
+
+    /* compute the dot products */
+    _dev_dotproducts<VTYPE>(Ashmem,Bshmem,Creg);
+    __syncthreads();
+  }
+
+  /* transfer registers to shmem */
+  Ashmem[threadIdx.x][threadIdx.y] = Areg;
+  Bshmem[threadIdx.x][threadIdx.y] = Breg;
+  __syncthreads();
+  
+  /* compute the dot products */
+  _dev_dotproducts<DELTA>(Ashmem,Bshmem,Creg);
+}
 
 template<class TYPE, class VTYPE, const int N_UNROLL, const int DELTA>
 __device__ void multiply(TYPE * __restrict__ A, TYPE * __restrict__ B, VTYPE* Creg,
@@ -28,7 +65,7 @@ __device__ void multiply(TYPE * __restrict__ A, TYPE * __restrict__ B, VTYPE* Cr
     /* load the next A tiles */
     A+=TILESIZE;
     B+=TILESIZE*dev_nColsB;
-    if (n<dev_N || threadIdx.x<DELTA) Areg = _dev_loadA<TYPE,VTYPE>(A);
+    if (n<dev_N || threadIdx.y<DELTA) Areg = _dev_loadA<TYPE,VTYPE>(A);
     if (n<dev_N || threadIdx.y<DELTA) Breg = _dev_loadB<TYPE,VTYPE>(B);  
 
     /* compute the dot products */
@@ -44,6 +81,7 @@ __device__ void multiply(TYPE * __restrict__ A, TYPE * __restrict__ B, VTYPE* Cr
   /* compute the dot products */
   _dev_dotproducts<DELTA>(Ashmem,Bshmem,Creg);
 }
+
 
 template<class TYPE, class VTYPE, const int NREGS>
 __device__ void multiply2(const int tidx, TYPE * __restrict__ A, TYPE * __restrict__ B,

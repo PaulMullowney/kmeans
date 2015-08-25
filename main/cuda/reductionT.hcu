@@ -1,74 +1,21 @@
-#if !defined(_REDUCTION_HCU_)
-#define _REDUCTION_HCU_
+#if !defined(_REDUCTION_T_HCU_)
+#define _REDUCTION_T_HCU_
 
 #include "fma.hcu"
 #include "vectorMin.hcu"
 
-inline __device__ float fminf(float a, float b, float ia, float ib, float& i)
-{
-  if (a<=b) {i=ia; return a; }
-  else {i=ib; return b; }
-}
-
-inline __device__ float fminf(float a, float b, int ia, int ib, int& i)
-{
-  if (a<=b) {i=ia; return a; }
-  else {i=ib; return b; }
-}
-
-__inline__ __device__ float2 fminf(float2 a, float2 b, float2 ia, float2 ib, float2& i)
-{
-  return make_float2(fminf(a.x,b.x,ia.x,ib.x,i.x), 
-		     fminf(a.y,b.y,ia.y,ib.y,i.y));
-}
-
-__inline__ __device__ float4 fminf(float4 a, float4 b, float4 ia, float4 ib, float4& i)
-{
-  return make_float4(fminf(a.x,b.x,ia.x,ib.x,i.x), 
-		     fminf(a.y,b.y,ia.y,ib.y,i.y), 
-		     fminf(a.z,b.z,ia.z,ib.z,i.z), 
-		     fminf(a.w,b.w,ia.w,ib.w,i.w));
-}
-
-
-inline __device__ double fmind(double a, double b, double ia, double ib, double& i)
-{
-  if (a<=b) {i=ia; return a; }
-  else {i=ib; return b; }
-}
-
-inline __device__ double fmind(double a, double b, int ia, int ib, int& i)
-{
-  if (a<=b) {i=ia; return a; }
-  else {i=ib; return b; }
-}
-
-__inline__ __device__ double2 fmind(double2 a, double2 b, double2 ia, double2 ib, double2& i)
-{
-  return make_double2(fmind(a.x,b.x,ia.x,ib.x,i.x), 
-		      fmind(a.y,b.y,ia.y,ib.y,i.y));
-}
-
-__inline__ __device__ double4 fmind(double4 a, double4 b, double4 ia, double4 ib, double4& i)
-{
-  return make_double4(fmind(a.x,b.x,ia.x,ib.x,i.x), 
-		      fmind(a.y,b.y,ia.y,ib.y,i.y), 
-		      fmind(a.z,b.z,ia.z,ib.z,i.z), 
-		      fmind(a.w,b.w,ia.w,ib.w,i.w));
-}
-
 template<class VTYPE>
-__device__ __inline__ void _dev_reduction(const int c, VTYPE * Creg,
-					  VTYPE L2normB[TILESIZE], 
-					  VTYPE A[TILESIZEY][TILESIZEY],
-					  VTYPE B[TILESIZEY][TILESIZEX]) {
+__device__ __inline__ void _dev_reductionT(const int c, VTYPE * Creg,
+					   VTYPE L2normB[TILESIZE], 
+					   VTYPE A[TILESIZEY][TILESIZEX],
+					   VTYPE B[TILESIZEY][TILESIZEX]) {
 }
 
 template<>
-__device__ __inline__ void _dev_reduction(const int c, float2 * Creg,
-					  float2 L2normB[TILESIZE],
-					  float2 A[TILESIZEY][TILESIZEY],
-					  float2 B[TILESIZEY][TILESIZEX]) {
+__device__ __inline__ void _dev_reductionT(const int c, float2 * Creg,
+					   float2 L2normB[TILESIZE],
+					   float2 A[TILESIZEY][TILESIZEX],
+					   float2 B[TILESIZEY][TILESIZEX]) {
 
   int tidx = threadIdx.x;
   int tidy = threadIdx.y;
@@ -113,10 +60,10 @@ __device__ __inline__ void _dev_reduction(const int c, float2 * Creg,
 }
 
 template<>
-__device__ __inline__ void _dev_reduction(const int c, double2 * Creg,
-					  double2 L2normB[TILESIZE],
-					  double2 A[TILESIZEY][TILESIZEY],
-					  double2 B[TILESIZEY][TILESIZEX]) {
+__device__ __inline__ void _dev_reductionT(const int c, double2 * Creg,
+					   double2 L2normB[TILESIZE],
+					   double2 A[TILESIZEY][TILESIZEX],
+					   double2 B[TILESIZEY][TILESIZEX]) {
 
   int tidx = threadIdx.x;
   int tidy = threadIdx.y;
@@ -161,10 +108,10 @@ __device__ __inline__ void _dev_reduction(const int c, double2 * Creg,
 }
 
 template<>
-__device__ __inline__ void _dev_reduction(const int c, float4 * Creg,
-					  float4 L2normB[TILESIZE],
-					  float4 A[TILESIZEY][TILESIZEY],
-					  float4 B[TILESIZEY][TILESIZEX]) {
+__device__ __inline__ void _dev_reductionT(const int c, float4 * Creg,
+					   float4 L2normB[TILESIZE],
+					   float4 A[TILESIZEY][TILESIZEX],
+					   float4 B[TILESIZEY][TILESIZEX]) {
 
   int tidx = threadIdx.x;
   int tidy = threadIdx.y;
@@ -214,10 +161,10 @@ __device__ __inline__ void _dev_reduction(const int c, float4 * Creg,
 }
 
 template<>
-__device__ __inline__ void _dev_reduction(const int c, double4 * Creg,
-					  double4 L2normB[TILESIZE],
-					  double4 A[TILESIZEY][TILESIZEY],
-					  double4 B[TILESIZEY][TILESIZEX]) {
+__device__ __inline__ void _dev_reductionT(const int c, double4 * Creg,
+					   double4 L2normB[TILESIZE],
+					   double4 A[TILESIZEY][TILESIZEX],
+					   double4 B[TILESIZEY][TILESIZEX]) {
 
   int tidx = threadIdx.x;
   int tidy = threadIdx.y;
@@ -266,38 +213,4 @@ __device__ __inline__ void _dev_reduction(const int c, double4 * Creg,
   __syncthreads();
 }
 
-#endif /* !defined(_REDUCTION_HCU_) */
-
-
-
-// #if 1
-//   float * a = reinterpret_cast<float*>(*A);
-//   float * b = reinterpret_cast<float*>(*B);
-//   a[4*tidy * TILESIZEY + tidx]=s.x;
-//   a[(4*tidy+1)* TILESIZEY + tidx]=s.y;
-//   a[(4*tidy+2)* TILESIZEY + tidx]=s.z;
-//   a[(4*tidy+3)* TILESIZEY + tidx]=s.w;
-
-//   b[4*tidy * TILESIZEX + tidx]=i.x;
-//   b[(4*tidy+1)* TILESIZEX + tidx]=i.y;
-//   b[(4*tidy+2)* TILESIZEX + tidx]=i.z;
-//   b[(4*tidy+3)* TILESIZEX + tidx]=i.w;
-//   __syncthreads();
-
-//   int tid = threadIdx.x + threadIdx.y*blockDim.x;
-//   if (tid<64) {
-//     float min = a[tid*TILESIZEY];
-//     float index = b[tid*TILESIZEX];
-
-//     for (int i=1; i<16; ++i) {
-//       if (a[tid*TILESIZEY+i]<min) {
-// 	min = a[tid*TILESIZEY+i];
-// 	index = b[tid*TILESIZEX+i];
-//       }
-//     }
-//     a[(tid/4)*(4*TILESIZEY) + tid%4]=min;
-//     b[(tid/4)*(4*TILESIZEX) + tid%4]=index;
-//   }
-
-
-// #else
+#endif /* !defined(_REDUCTION_T_HCU_) */

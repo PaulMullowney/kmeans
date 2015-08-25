@@ -70,6 +70,7 @@ inline int getMaxConcurrentBlocks() {
 
 __constant__ __device__ int dev_N;
 __constant__ __device__ int dev_DELTA;
+__constant__ __device__ int dev_nRowsAPadded;
 __constant__ __device__ int dev_nRowsA;
 __constant__ __device__ int dev_nColsA;
 __constant__ __device__ int dev_nRowsB;
@@ -401,7 +402,8 @@ extern "C" {
  * @param m0 the starting data point in a compute tile
  * @param nRowsA the number of rows in A
  * @param nColsA the number of columns in A
- * @param A a pointer to the left hand side matrix (C ordering)
+ * @param isTranspose whether or not the supplied matrix is transpose or not.
+ * @param A a pointer to the left hand side matrix or the Transpose (C ordering)
  * @param nColsC the number of rows in C
  * @param B a pointer to the right hand side matrix (C ordering)
  * @param normRowsOfA_squared L2 norm squared of the rows of A
@@ -414,8 +416,8 @@ extern "C" {
  * @return an error status upon return
  */
 template<class TYPE>
-DllExport kmeansCudaErrorStatus ClosestCenters(const int m0, const int nRowsA, 
-					       const int nColsA, const TYPE *A,
+DllExport kmeansCudaErrorStatus ClosestCenters(const int m0, const int nRowsA, const int nColsA, 
+					       const bool isTranspose, const TYPE *A,
 					       const int nColsB, const TYPE *B, 
 					       const TYPE * normRowsOfA_squared,
 					       const TYPE * normColsOfB_squared,

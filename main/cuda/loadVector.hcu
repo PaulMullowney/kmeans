@@ -5,40 +5,40 @@
 
 template<class TYPE, class VTYPE>
 __device__ __inline__ void _dev_loadVector(const int i, const int n,
-						  const TYPE * __restrict__ x, 
-						  VTYPE& xreg) {
+					   const TYPE * __restrict__ x, 
+					   VTYPE& xreg) {
 }
 
 template<>
 __device__ __inline__ void _dev_loadVector(const int i, const int n, 
-						  const float * __restrict__ x, 
-						  float2& xreg) {
+					   const float * __restrict__ x, 
+					   float2& xreg) {
 
   zero<float2>(xreg);
-  if (i<n)          xreg.x =  x[i];
-  if (i+TILESIZE<n) xreg.y =  x[i+TILESIZE];
+  if (i<n)   xreg.x =  x[i];
+  if (i+1<n) xreg.y =  x[i+1];
 }
 
 template<>
 __device__ __inline__ void _dev_loadVector(const int i, const int n, 
-						  const double * __restrict__ x, 
-						  double2& xreg) {
-
+					   const double * __restrict__ x, 
+					   double2& xreg) {
+  
   zero<double2>(xreg);
-  if (i<n)          xreg.x =  x[i];
-  if (i+TILESIZE<n) xreg.y =  x[i+TILESIZE];
+  if (i<n)   xreg.x =  x[i];
+  if (i+1<n) xreg.y =  x[i+1];
 }
 
 template<>
 __device__ __inline__ void _dev_loadVector(const int i, const int n, 
-						  const float * __restrict__ x, 
-						  float4& xreg) {
+					   const float * __restrict__ x, 
+					   float4& xreg) {
 
   zero<float4>(xreg);
-  if (i<n)            xreg.x =  x[i];
-  if (i+TILESIZE<n)   xreg.y =  x[i+TILESIZE];
-  if (i+2*TILESIZE<n) xreg.z =  x[i+2*TILESIZE];
-  if (i+3*TILESIZE<n) xreg.w =  x[i+3*TILESIZE];
+  if (i<n)   xreg.x =  x[i];
+  if (i+1<n) xreg.y =  x[i+1];
+  if (i+2<n) xreg.z =  x[i+2];
+  if (i+3<n) xreg.w =  x[i+3];
 }
 
 template<>
@@ -47,10 +47,10 @@ __device__ __inline__ void _dev_loadVector(const int i, const int n,
 						  double4& xreg) {
 
   zero<double4>(xreg);
-  if (i<n)            xreg.x =  x[i];
-  if (i+TILESIZE<n)   xreg.y =  x[i+TILESIZE];
-  if (i+2*TILESIZE<n) xreg.z =  x[i+2*TILESIZE];
-  if (i+3*TILESIZE<n) xreg.w =  x[i+3*TILESIZE];
+  if (i<n)   xreg.x =  x[i];
+  if (i+1<n) xreg.y =  x[i+1];
+  if (i+2<n) xreg.z =  x[i+2];
+  if (i+3<n) xreg.w =  x[i+3];
 }
 
 #endif /* !defined(_LOAD_VECTOR_HCU_) */
