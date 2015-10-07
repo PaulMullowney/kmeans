@@ -540,7 +540,7 @@ kmeansErrorStatus kmeans<TYPE>::buildData(const TYPE * data) {
     /* allocate arrays */
     /*******************/
 
-    int mCompute = this->useMiniBatch ? this->m_mb : this->m;
+    //int mCompute = this->useMiniBatch ? this->m_mb : this->m;
     int mComputePadded = this->useMiniBatch ? this->m_mb_padded : this->m_padded;
     uint64_t nBytes = 0;
 

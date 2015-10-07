@@ -34,4 +34,44 @@ __device__ __inline__ double4 _dev_loadB(const double * __restrict__ B) {
   //return make_double4(B[0], B[TILESIZE], B[2*TILESIZE], B[3*TILESIZE]);
 }
 
+
+
+
+template<class TYPE, const int N_UNROLL>
+__device__ __inline__ void _dev_loadB(const TYPE * __restrict__ B, TYPE (&Breg)[N_UNROLL]) {
+}
+
+template<>
+__device__ __inline__ void _dev_loadB(const float * __restrict__ B, float (&Breg)[2]) {
+  const float2 * b = reinterpret_cast<const float2 *>(B);
+  Breg[0] = b->x;
+  Breg[1] = b->y;
+}
+
+template<>
+__device__ __inline__ void _dev_loadB(const double * __restrict__ B, double (&Breg)[2]) {
+  const double2 * b = reinterpret_cast<const double2 *>(B);
+  Breg[0] = b->x;
+  Breg[1] = b->y;
+}
+
+
+template<>
+__device__ __inline__ void _dev_loadB(const float * __restrict__ B, float (&Breg)[4]) {
+  const float4 * b = reinterpret_cast<const float4 *>(B);
+  Breg[0] = b->x;
+  Breg[1] = b->y;
+  Breg[2] = b->z;
+  Breg[3] = b->w;
+}
+
+template<>
+__device__ __inline__ void _dev_loadB(const double * __restrict__ B, double (&Breg)[4]) {
+  const double4 * b = reinterpret_cast<const double4 *>(B);
+  Breg[0] = b->x;
+  Breg[1] = b->y;
+  Breg[2] = b->z;
+  Breg[3] = b->w;
+}
+
 #endif /* !defined(_LOAD_B_HCU_) */

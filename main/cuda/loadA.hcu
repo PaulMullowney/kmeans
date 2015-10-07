@@ -28,6 +28,42 @@ __device__ __inline__ double4 _dev_loadA(const double * __restrict__ A) {
 }
 
 
+
+template<class TYPE, const int N_UNROLL>
+__device__ __inline__ void _dev_loadA(const TYPE * __restrict__ A, TYPE (&Areg)[N_UNROLL]) {
+}
+
+template<>
+__device__ __inline__ void _dev_loadA(const float * __restrict__ A, float (&Areg)[2]) {
+  Areg[0] = A[0];
+  Areg[1] = A[ASTRIDE];
+}
+
+template<>
+__device__ __inline__ void _dev_loadA(const double * __restrict__ A, double (&Areg)[2]) {
+  Areg[0] = A[0];
+  Areg[1] = A[ASTRIDE];
+}
+
+template<>
+__device__ __inline__ void _dev_loadA(const float * __restrict__ A, float (&Areg)[4]) {
+  Areg[0] = A[0];
+  Areg[1] = A[ASTRIDE];
+  Areg[2] = A[2*ASTRIDE];
+  Areg[3] = A[3*ASTRIDE];
+}
+
+template<>
+__device__ __inline__ void _dev_loadA(const double * __restrict__ A, double (&Areg)[4]) {
+  Areg[0] = A[0];
+  Areg[1] = A[ASTRIDE];
+  Areg[2] = A[2*ASTRIDE];
+  Areg[3] = A[3*ASTRIDE];
+}
+
+
+
+
 template<class TYPE, class VTYPE>
 __device__ __inline__ VTYPE _dev_loadAT(const TYPE * __restrict__ A) {
 }

@@ -3,7 +3,7 @@
 
 class MatMultTests : public testing::Test {
 
- protected: 
+ protected:
 
   /* @brief constructor */
   MatMultTests() {
@@ -31,7 +31,6 @@ TEST_F(MatMultTests, SIFT) {
   int m = 898790;
   int n = 128;
   int k = 256;
-  int err = 0;
 
   /* allocate data */
   float * data = (float *)malloc(m*n*sizeof(float));
@@ -67,7 +66,8 @@ TEST_F(MatMultTests, SIFT) {
   cudaMemset(dev_result, 0, nBytes);
 
   /* run MatMatMultF */
-  err = MatMatMultF(m, n, dev_data, k, dev_centers, dev_result);
+  int err = MatMatMultF(m, n, dev_data, k, dev_centers, dev_result);
+  if (err) printf("Error int MatMatMultF for mat-sift\n");
   cudaMemcpy(result, dev_result, nBytes, cudaMemcpyDeviceToHost);
 
   /* run CUBLAS SGEMM */
@@ -84,16 +84,16 @@ TEST_F(MatMultTests, SIFT) {
 
   /* check results */
   for (int i = 0; i < m; ++i) {
-	  for (int j = 0; j < k; ++j) {
-		  int index = i*k + j;
-		  if (result[index] == 0 && resultCublas[index] == 0) continue;
-		  else {
-			  float err = fabs(result[index] - resultCublas[index]) / fabs(result[index]);
-			  if (err >= 1.e-6 || result[index] == 0)
-				  printf("i=%d, j=%d : %1.5g, %1.5g, err=%1.5g\n", i, j, result[index], resultCublas[index], err);
-			  ASSERT_LT(err, 1.e-6);
-		  }
-	  }
+    for (int j = 0; j < k; ++j) {
+      int index = i*k + j;
+      if (result[index] == 0 && resultCublas[index] == 0) continue;
+      else {
+	float err = fabs(result[index] - resultCublas[index]) / fabs(result[index]);
+	if (err >= 1.e-6 || result[index] == 0)
+	  printf("i=%d, j=%d : %1.5g, %1.5g, err=%1.5g\n", i, j, result[index], resultCublas[index], err);
+	ASSERT_LT(err, 1.e-6);
+      }
+    }
   }
 
   /* free data */
@@ -109,12 +109,11 @@ TEST_F(MatMultTests, SIFT) {
 }
 
 TEST_F(MatMultTests, HOG) {
-  
+
   string fileName("mat-hog");
   int m = 796160;
   int n = 324;
   int k = 256;
-  int err = 0;
 
   /* allocate data */
   float * data = (float *) malloc(m*n*sizeof(float));
@@ -150,9 +149,10 @@ TEST_F(MatMultTests, HOG) {
   cudaMemset(dev_result,0,nBytes);
 
   /* run MatMatMultF */
-  err = MatMatMultF(m,n,dev_data,k,dev_centers,dev_result);
+  int err = MatMatMultF(m,n,dev_data,k,dev_centers,dev_result);
+  if (err) printf("Error int MatMatMultF for mat-sift\n");
   cudaMemcpy(result, dev_result, nBytes, cudaMemcpyDeviceToHost);
-	  
+
   /* run CUBLAS SGEMM */
   float one = 1.f;
   float zero = 0.f;
@@ -167,16 +167,16 @@ TEST_F(MatMultTests, HOG) {
 
   /* check results */
   for (int i = 0; i < m; ++i) {
-	  for (int j = 0; j < k; ++j) {
-		  int index = i*k + j;
-		  if (result[index] == 0 && resultCublas[index] == 0) continue;
-		  else {
-			  float err = fabs(result[index] - resultCublas[index]) / fabs(result[index]);
-			  if (err >= 1.e-6 || result[index] == 0)
-				  printf("i=%d, j=%d : %1.5g, %1.5g, err=%1.5g\n", i, j, result[index], resultCublas[index], err);
-			  ASSERT_LT(err, 1.e-6);
-		  }
-	  }
+    for (int j = 0; j < k; ++j) {
+      int index = i*k + j;
+      if (result[index] == 0 && resultCublas[index] == 0) continue;
+      else {
+	float err = fabs(result[index] - resultCublas[index]) / fabs(result[index]);
+	if (err >= 1.e-6 || result[index] == 0)
+	  printf("i=%d, j=%d : %1.5g, %1.5g, err=%1.5g\n", i, j, result[index], resultCublas[index], err);
+	ASSERT_LT(err, 1.e-6);
+      }
+    }
   }
 
   /* free data */
@@ -191,10 +191,8 @@ TEST_F(MatMultTests, HOG) {
   cublasDestroy(handle);
 }
 
-
 int main(int argc, char **argv) {
   ::testing::InitGoogleTest(&argc, argv);
   int err = RUN_ALL_TESTS();
-  int keepOpen = getchar();
   return err;
 }

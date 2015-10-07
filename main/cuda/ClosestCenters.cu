@@ -5,7 +5,7 @@
 #include "multiply.hcu"
 
 template<class TYPE, class VTYPE, const int N_UNROLL, const int DELTA>
-//__launch_bounds__(256,6)
+//__launch_bounds__(256,1)
 __global__ void _dev_ClosestCentersBeginT(const TYPE * __restrict__ A, const TYPE * __restrict__ B,
 					  const TYPE * __restrict__ normRowsOfA_squared,
 					  const TYPE * __restrict__ normColsOfB_squared,
@@ -53,7 +53,7 @@ __global__ void _dev_ClosestCentersBeginT(const TYPE * __restrict__ A, const TYP
 }
 
 template<class TYPE, class VTYPE, const int N_UNROLL, const int DELTA>
-//__launch_bounds__(256,6)
+//__launch_bounds__(256,1)
 __global__ void _dev_ClosestCentersBegin(const TYPE * __restrict__ A, const TYPE * __restrict__ B,
 					 const TYPE * __restrict__ normRowsOfA_squared,
 					 const TYPE * __restrict__ normColsOfB_squared,
@@ -97,6 +97,63 @@ __global__ void _dev_ClosestCentersBegin(const TYPE * __restrict__ A, const TYPE
       Cindices[r*dev_nColsC+blockIdx.x] = (int)b[threadIdx.x];
     }      
   }
+}
+
+
+
+template<class TYPE, const int N_UNROLL, const int DELTA>
+//__launch_bounds__(256,1)
+__global__ void _dev_ClosestCentersBeginNew(const TYPE * __restrict__ A, const TYPE * __restrict__ B,
+					    const TYPE * __restrict__ normRowsOfA_squared,
+					    const TYPE * __restrict__ normColsOfB_squared,
+					    TYPE * __restrict__ C, int * __restrict__ Cindices) {
+
+  __shared__ TYPE Ashmem[N_UNROLL*TILESIZEY][TILESIZEY];
+  __shared__ TYPE Bshmem[N_UNROLL*TILESIZEY][TILESIZEX];
+
+  /* read in the vector data from global memory */
+  __shared__ TYPE L2normB[N_UNROLL*TILESIZE];
+
+  int r = blockIdx.y*N_UNROLL*TILESIZE + N_UNROLL*threadIdx.y;
+  int c = blockIdx.x*N_UNROLL*TILESIZE + N_UNROLL*threadIdx.x;
+
+  TYPE Creg[N_UNROLL*N_UNROLL];
+  for (int n=0; n<N_UNROLL*N_UNROLL; ++n)
+    Creg[n]=0;
+
+  /* matrix matrix multiply */
+  TYPE * a = const_cast<TYPE *>(A) + r*dev_nColsA + threadIdx.x;
+  TYPE * b = const_cast<TYPE *>(B) + c + threadIdx.y*dev_nColsB;
+
+  multiplyNew<TYPE,N_UNROLL,DELTA>(a, b, Creg, Ashmem, Bshmem);
+
+  /* load the vector data */
+  if (threadIdx.y==0) {
+    for (int n=0; n<N_UNROLL; ++n) {
+      L2normB[threadIdx.x*N_UNROLL+n] = 0;
+      if (c+n<dev_nColsB)
+	L2normB[threadIdx.x*N_UNROLL+n] = normColsOfB_squared[c+n];
+    }
+  }
+  __syncthreads();
+
+#if 0
+
+  /* perform the partial reduction over each row in the shmem buffers */
+  _dev_reduction<TYPE,TILESIZEY,TILESIZEX,N_UNROLL>(c, Creg, L2normB, Ashmem, Bshmem);
+
+  a = reinterpret_cast<TYPE *>(&(Ashmem[threadIdx.y][0]));
+  b = reinterpret_cast<TYPE *>(&(Bshmem[threadIdx.y][0]));
+
+  /* write out the results */
+  if (threadIdx.x<N_UNROLL) {
+    r += threadIdx.x;
+    if(r<dev_nRowsA) {
+      C[r*dev_nColsC+blockIdx.x]        = a[threadIdx.x];
+      Cindices[r*dev_nColsC+blockIdx.x] = (int)b[threadIdx.x];
+    }      
+  }
+#endif
 }
 
 __host__ __device__ static __inline__ int nextPowerOfTwo(int v) {
@@ -245,52 +302,52 @@ kmeansCudaErrorStatus ClosestCenters(const int m0, const int nRowsA, const int n
     } else {
 
       if (delta==1)
-	_dev_ClosestCentersBegin<TYPE,VTYPE,N_UNROLL,1><<<grid,block>>>(A,B,normRowsOfA_squared,
+	_dev_ClosestCentersBeginNew<TYPE,N_UNROLL,1><<<grid,block>>>(A,B,normRowsOfA_squared,
 									normColsOfB_squared,C,Cindices);
       else if (delta==2)
-	_dev_ClosestCentersBegin<TYPE,VTYPE,N_UNROLL,2><<<grid,block>>>(A,B,normRowsOfA_squared,
+	_dev_ClosestCentersBeginNew<TYPE,N_UNROLL,2><<<grid,block>>>(A,B,normRowsOfA_squared,
 									normColsOfB_squared,C,Cindices);
       else if (delta==3)
-	_dev_ClosestCentersBegin<TYPE,VTYPE,N_UNROLL,3><<<grid,block>>>(A,B,normRowsOfA_squared,
+	_dev_ClosestCentersBeginNew<TYPE,N_UNROLL,3><<<grid,block>>>(A,B,normRowsOfA_squared,
 									normColsOfB_squared,C,Cindices);
       else if (delta==4)
-	_dev_ClosestCentersBegin<TYPE,VTYPE,N_UNROLL,4><<<grid,block>>>(A,B,normRowsOfA_squared,
+	_dev_ClosestCentersBeginNew<TYPE,N_UNROLL,4><<<grid,block>>>(A,B,normRowsOfA_squared,
 									normColsOfB_squared,C,Cindices);
       else if (delta==5)
-	_dev_ClosestCentersBegin<TYPE,VTYPE,N_UNROLL,5><<<grid,block>>>(A,B,normRowsOfA_squared,
+	_dev_ClosestCentersBeginNew<TYPE,N_UNROLL,5><<<grid,block>>>(A,B,normRowsOfA_squared,
 									normColsOfB_squared,C,Cindices);
       else if (delta==6)
-	_dev_ClosestCentersBegin<TYPE,VTYPE,N_UNROLL,6><<<grid,block>>>(A,B,normRowsOfA_squared,
+	_dev_ClosestCentersBeginNew<TYPE,N_UNROLL,6><<<grid,block>>>(A,B,normRowsOfA_squared,
 									normColsOfB_squared,C,Cindices);
       else if (delta==7)
-	_dev_ClosestCentersBegin<TYPE,VTYPE,N_UNROLL,7><<<grid,block>>>(A,B,normRowsOfA_squared,
+	_dev_ClosestCentersBeginNew<TYPE,N_UNROLL,7><<<grid,block>>>(A,B,normRowsOfA_squared,
 									normColsOfB_squared,C,Cindices);
       else if (delta==8)
-	_dev_ClosestCentersBegin<TYPE,VTYPE,N_UNROLL,8><<<grid,block>>>(A,B,normRowsOfA_squared,
+	_dev_ClosestCentersBeginNew<TYPE,N_UNROLL,8><<<grid,block>>>(A,B,normRowsOfA_squared,
 									normColsOfB_squared,C,Cindices);
       else if (delta==9)
-	_dev_ClosestCentersBegin<TYPE,VTYPE,N_UNROLL,9><<<grid,block>>>(A,B,normRowsOfA_squared,
+	_dev_ClosestCentersBeginNew<TYPE,N_UNROLL,9><<<grid,block>>>(A,B,normRowsOfA_squared,
 									normColsOfB_squared,C,Cindices);
       else if (delta==10)
-	_dev_ClosestCentersBegin<TYPE,VTYPE,N_UNROLL,10><<<grid,block>>>(A,B,normRowsOfA_squared,
+	_dev_ClosestCentersBeginNew<TYPE,N_UNROLL,10><<<grid,block>>>(A,B,normRowsOfA_squared,
 									 normColsOfB_squared,C,Cindices);
       else if (delta==11)
-	_dev_ClosestCentersBegin<TYPE,VTYPE,N_UNROLL,11><<<grid,block>>>(A,B,normRowsOfA_squared,
+	_dev_ClosestCentersBeginNew<TYPE,N_UNROLL,11><<<grid,block>>>(A,B,normRowsOfA_squared,
 									 normColsOfB_squared,C,Cindices);
       else if (delta==12)
-	_dev_ClosestCentersBegin<TYPE,VTYPE,N_UNROLL,12><<<grid,block>>>(A,B,normRowsOfA_squared,
+	_dev_ClosestCentersBeginNew<TYPE,N_UNROLL,12><<<grid,block>>>(A,B,normRowsOfA_squared,
 									 normColsOfB_squared,C,Cindices);
       else if (delta==13)
-	_dev_ClosestCentersBegin<TYPE,VTYPE,N_UNROLL,13><<<grid,block>>>(A,B,normRowsOfA_squared,
+	_dev_ClosestCentersBeginNew<TYPE,N_UNROLL,13><<<grid,block>>>(A,B,normRowsOfA_squared,
 									 normColsOfB_squared,C,Cindices);
       else if (delta==14)
-	_dev_ClosestCentersBegin<TYPE,VTYPE,N_UNROLL,14><<<grid,block>>>(A,B,normRowsOfA_squared,
+	_dev_ClosestCentersBeginNew<TYPE,N_UNROLL,14><<<grid,block>>>(A,B,normRowsOfA_squared,
 									 normColsOfB_squared,C,Cindices);
       else if (delta==15)
-	_dev_ClosestCentersBegin<TYPE,VTYPE,N_UNROLL,15><<<grid,block>>>(A,B,normRowsOfA_squared,
+	_dev_ClosestCentersBeginNew<TYPE,N_UNROLL,15><<<grid,block>>>(A,B,normRowsOfA_squared,
 									 normColsOfB_squared,C,Cindices);
       else if (delta==16)
-	_dev_ClosestCentersBegin<TYPE,VTYPE,N_UNROLL,16><<<grid,block>>>(A,B,normRowsOfA_squared,
+	_dev_ClosestCentersBeginNew<TYPE,N_UNROLL,16><<<grid,block>>>(A,B,normRowsOfA_squared,
 									 normColsOfB_squared,C,Cindices);
     }
 

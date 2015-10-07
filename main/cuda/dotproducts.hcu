@@ -1,6 +1,45 @@
 #if !defined(_DOT_PRODUCTS_HCU_)
 #define _DOT_PRODUCTS_HCU_
 
+// // template<class TYPE, const int T1, const int T2, const int N_UNROLL>
+// __device__ __inline__ void _dev_dotproducts(TYPE A[N_UNROLL*TILESIZEY][T1],
+// 					    TYPE B[N_UNROLL*TILESIZEY][T2],
+// 					    TYPE (&Creg)[N_UNROLL*N_UNROLL]) {
+
+//   TYPE t1, t2;
+//   for (int m=0; m<N_UNROLL; ++m) {
+//     for (int n=0; n<N_UNROLL; ++n) {
+//       int i = m*N_UNROLL + n;
+// #pragma unroll
+//       for (int k=0; k<TILESIZE; ++k) {
+// 	t1 = A[threadIdx.y*N_UNROLL + m][k];
+// 	t2 = B[threadIdx.x*N_UNROLL + n][k];
+// 	Creg[i] = fma(t1,t2,Creg[i]);
+//       }
+//     }
+//   }
+// }
+
+
+// template<class TYPE, const int LENGTH, const int T1, const int T2, const int N_UNROLL>
+// __device__ __inline__ void _dev_dotproductsF(TYPE A[N_UNROLL*TILESIZEY][T1],
+// 					     TYPE B[N_UNROLL*TILESIZEY][T2],
+// 					     TYPE (&Creg)[N_UNROLL*N_UNROLL]) {
+//   TYPE t1, t2;
+
+//   for (int m=0; m<N_UNROLL; ++m) {
+//     for (int n=0; n<N_UNROLL; ++n) {
+//       int i = m*N_UNROLL + n;
+// #pragma unroll
+//       for (int k=0; k<LENGTH; ++k) {
+// 	t1 = A[threadIdx.y*N_UNROLL + m][k];
+// 	t2 = B[threadIdx.x*N_UNROLL + n][k];
+// 	Creg[i] = fma(t1,t2,Creg[i]);
+//       }
+//     }
+//   }
+// }
+
 
 template<const int T1, const int T2>
 __device__ __inline__ void _dev_dotproducts(float2 A[TILESIZEY][T1],
