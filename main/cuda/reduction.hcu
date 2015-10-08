@@ -181,7 +181,6 @@ __device__ __inline__ void _dev_reduction(const int c, float4 * Creg,
 
   A[tidy][tidx] = s;
   B[tidy][tidx] = make_float4(i.x+c,i.y+c,i.z+c,i.w+c);  
-  __syncthreads();
     
   /* perform the partial reduction over each row in the  buffers */
   if (tidx%2==0) {
@@ -204,7 +203,6 @@ __device__ __inline__ void _dev_reduction(const int c, float4 * Creg,
 			  B[tidy][tidx],B[tidy][tidx+8],s);
     B[tidy][tidx] = s;
   }
-  __syncthreads();
 }
 
 template<const int T1, const int T2>

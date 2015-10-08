@@ -76,34 +76,25 @@ __device__ __inline__ void _dev_dotproducts(float4 A[TILESIZEY][T1],
 					    float4 * Creg) {
 #if 1
 
-  float4 t1, t2, t3, t4;
 #pragma unroll
   for (int k=0; k<TILESIZE; k+=2) {
-    double4 * a = reinterpret_cast<double4 *>(&(A[threadIdx.y][k]));
-    double4 d1 = a[0];
+    float8 * a = reinterpret_cast<float8 *>(&(A[threadIdx.y][k]));
+    float8 d1 = a[0];
 
-    t1 = make_float4(__int_as_float(__double2loint(d1.x)), __int_as_float(__double2hiint(d1.x)),
-    		     __int_as_float(__double2loint(d1.y)), __int_as_float(__double2hiint(d1.y)));
-    t3 = make_float4(__int_as_float(__double2loint(d1.z)), __int_as_float(__double2hiint(d1.z)),
-    		     __int_as_float(__double2loint(d1.w)), __int_as_float(__double2hiint(d1.w)));
+    float8 * b = reinterpret_cast<float8 *>(&(B[threadIdx.x][k]));
+    float8 d2 = b[0];
+    float4 t1 = make_float4(d2.a, d2.b, d2.c, d2.d);
+    float4 t2 = make_float4(d2.e, d2.f, d2.g, d2.h);
 
-    double4 * b = reinterpret_cast<double4 *>(&(B[threadIdx.x][k]));
-    double4 d2 = b[0];
+    Creg[0] = fma<float,float4>(d1.a,t1,Creg[0]);
+    Creg[1] = fma<float,float4>(d1.b,t1,Creg[1]);
+    Creg[2] = fma<float,float4>(d1.c,t1,Creg[2]);
+    Creg[3] = fma<float,float4>(d1.d,t1,Creg[3]);
 
-    t2 = make_float4(__int_as_float(__double2loint(d2.x)), __int_as_float(__double2hiint(d2.x)),
-		     __int_as_float(__double2loint(d2.y)), __int_as_float(__double2hiint(d2.y)));
-    t4 = make_float4(__int_as_float(__double2loint(d2.z)), __int_as_float(__double2hiint(d2.z)),
-		     __int_as_float(__double2loint(d2.w)), __int_as_float(__double2hiint(d2.w)));
-
-    Creg[0] = fma<float,float4>(t1.x,t2,Creg[0]);
-    Creg[1] = fma<float,float4>(t1.y,t2,Creg[1]);
-    Creg[2] = fma<float,float4>(t1.z,t2,Creg[2]);
-    Creg[3] = fma<float,float4>(t1.w,t2,Creg[3]);
-
-    Creg[0] = fma<float,float4>(t3.x,t4,Creg[0]);
-    Creg[1] = fma<float,float4>(t3.y,t4,Creg[1]);
-    Creg[2] = fma<float,float4>(t3.z,t4,Creg[2]);
-    Creg[3] = fma<float,float4>(t3.w,t4,Creg[3]);
+    Creg[0] = fma<float,float4>(d1.e,t2,Creg[0]);
+    Creg[1] = fma<float,float4>(d1.f,t2,Creg[1]);
+    Creg[2] = fma<float,float4>(d1.g,t2,Creg[2]);
+    Creg[3] = fma<float,float4>(d1.h,t2,Creg[3]);
   }
 
 #else

@@ -111,7 +111,7 @@ kmeansCudaErrorStatus ClusterCenters(const int m0, const int m,
     dim3 block = dim3(nThreads,1,1);
     const int shmemBytes = n*sizeof(float)+sizeof(int);
 
-    CUDA_SAFE_CALL(cudaDeviceSetSharedMemConfig(cudaSharedMemBankSizeFourByte),ERROR_CLUSTERCENTERS);
+    CUDA_SAFE_CALL(cudaDeviceSetSharedMemConfig(cudaSharedMemBankSizeEightByte),ERROR_CLUSTERCENTERS);
     CUDA_SAFE_CALL(cudaFuncSetCacheConfig(_dev_ClusterCentersBegin<float>, cudaFuncCachePreferShared),ERROR_CLUSTERCENTERS);
 
     _dev_ClusterCentersBegin<float><<<grid,block>>>(m0,m,n,k,data,indices,centers_large,counts_large);

@@ -34,7 +34,7 @@ IF (WITH_CUDA)
     OPTION(CUDA_ARCH_30 "Build the library under sm_30 only." OFF)
 
     IF(CUDA_ARCH_52)
-	SET(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS} "-O3 -g -Xptxas -v -std=c++11 -arch=sm_52")
+	SET(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS} "-O3 -g -lineinfo -Xptxas -v -std=c++11 -arch=sm_52")
     ELSEIF(CUDA_ARCH_50)
 	SET(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS} "-O3 -g -Xptxas -v -std=c++11 -arch=sm_50")
     ELSEIF(CUDA_ARCH_35)

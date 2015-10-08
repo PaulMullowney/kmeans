@@ -31,15 +31,19 @@ __global__ void _dev_MatMatMult(const TYPE * __restrict__ A,
 
 
 template<class TYPE, const int N_UNROLL, const int DELTA>
+__launch_bounds__(256,4)
 __global__ void _dev_MatMatMultNew(const TYPE * __restrict__ A,
 				   const TYPE * __restrict__ B,
 				   TYPE * __restrict__ C) {
 
-  __shared__ TYPE Ashmem[N_UNROLL*TILESIZEY][TILESIZEY];
+  __shared__ TYPE Ashmem[N_UNROLL*TILESIZEY][TILESIZEX];
   __shared__ TYPE Bshmem[N_UNROLL*TILESIZEY][TILESIZEX];
 
-  int r = blockIdx.y*N_UNROLL*TILESIZE + N_UNROLL*threadIdx.y;
-  int c = blockIdx.x*N_UNROLL*TILESIZE + N_UNROLL*threadIdx.x;
+  int r = blockIdx.y*N_UNROLL*TILESIZE + threadIdx.y;
+  int c = blockIdx.x*N_UNROLL*TILESIZE + threadIdx.x;
+
+  //int r = blockIdx.y*N_UNROLL*TILESIZE + N_UNROLL*threadIdx.y;
+  //int c = blockIdx.x*N_UNROLL*TILESIZE + N_UNROLL*threadIdx.x;
 
   TYPE Creg[N_UNROLL*N_UNROLL];
   for (int n=0; n<N_UNROLL*N_UNROLL; ++n)
@@ -51,6 +55,18 @@ __global__ void _dev_MatMatMultNew(const TYPE * __restrict__ A,
   multiplyNew<TYPE,N_UNROLL,DELTA>(a, b, Creg, Ashmem, Bshmem);
 
   /* write the results */
+#if 1
+  for (int n=0; n<N_UNROLL; ++n) {
+    for (int p=0; p<N_UNROLL; ++p) {
+      if (r<dev_nRowsA) {
+	if (c+p*TILESIZE<dev_nColsB)
+	  C[r*dev_nColsB + c+p*TILESIZE] = Creg[n*N_UNROLL+p];
+      }
+    }
+    r+=TILESIZE;
+  }
+
+#else
   for (int n=0; n<N_UNROLL; ++n) {
     for (int p=0; p<N_UNROLL; ++p) {
       if (r<dev_nRowsA) {
@@ -60,6 +76,7 @@ __global__ void _dev_MatMatMultNew(const TYPE * __restrict__ A,
     }
     r++;
   }
+#endif
 }
 
 
@@ -122,8 +139,8 @@ kmeansCudaErrorStatus MatMatMult(const int nRowsA, const int nColsA, const TYPE 
     CUDA_SAFE_CALL(cudaMemcpyToSymbol(dev_nColsA, &nColsA, sizeof(int)),ERROR_MATMATMULT);
     CUDA_SAFE_CALL(cudaMemcpyToSymbol(dev_nRowsB, &nColsA, sizeof(int)),ERROR_MATMATMULT);
     CUDA_SAFE_CALL(cudaMemcpyToSymbol(dev_nColsB, &nColsB, sizeof(int)),ERROR_MATMATMULT);
-    //int astride = TILESIZE*nColsA;
-    int astride = nColsA;
+    int astride = TILESIZE*nColsA;
+    //int astride = nColsA;
     CUDA_SAFE_CALL(cudaMemcpyToSymbol(ASTRIDE, &astride, sizeof(int)),ERROR_MATMATMULT);
 
     CUDA_SAFE_CALL(cudaDeviceSetSharedMemConfig(cudaSharedMemBankSizeEightByte),ERROR_MATMATMULT);

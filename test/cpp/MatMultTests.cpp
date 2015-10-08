@@ -82,19 +82,29 @@ TEST_F(MatMultTests, SIFT) {
 	  (const float *)&zero, (float *)dev_result, k);
   cudaMemcpy(resultCublas, dev_result, nBytes, cudaMemcpyDeviceToHost);
 
+#if 1
   /* check results */
+  int maxPrintErrors=10;
+  int numPrintErrors=0;
   for (int i = 0; i < m; ++i) {
     for (int j = 0; j < k; ++j) {
       int index = i*k + j;
       if (result[index] == 0 && resultCublas[index] == 0) continue;
       else {
 	float err = fabs(result[index] - resultCublas[index]) / fabs(result[index]);
-	if (err >= 1.e-6 || result[index] == 0)
+	if (err >= 1.e-6 || result[index] == 0) {
 	  printf("i=%d, j=%d : %1.5g, %1.5g, err=%1.5g\n", i, j, result[index], resultCublas[index], err);
-	ASSERT_LT(err, 1.e-6);
+	  if (numPrintErrors<maxPrintErrors) {
+	    numPrintErrors++;
+	    EXPECT_LT(err, 1.e-6);
+	  } else {
+	    ASSERT_LT(err, 1.e-6);
+	  }
+	}
       }
     }
   }
+#endif
 
   /* free data */
   if (dev_data) cudaFree(dev_data);
@@ -165,19 +175,29 @@ TEST_F(MatMultTests, HOG) {
 	  (const float *)&zero, (float *)dev_result, k);
   cudaMemcpy(resultCublas, dev_result, nBytes, cudaMemcpyDeviceToHost);
 
+#if 1
   /* check results */
+  int maxPrintErrors=10;
+  int numPrintErrors=0;
   for (int i = 0; i < m; ++i) {
     for (int j = 0; j < k; ++j) {
       int index = i*k + j;
       if (result[index] == 0 && resultCublas[index] == 0) continue;
       else {
 	float err = fabs(result[index] - resultCublas[index]) / fabs(result[index]);
-	if (err >= 1.e-6 || result[index] == 0)
+	if (err >= 1.e-6 || result[index] == 0) {
 	  printf("i=%d, j=%d : %1.5g, %1.5g, err=%1.5g\n", i, j, result[index], resultCublas[index], err);
-	ASSERT_LT(err, 1.e-6);
+	  if (numPrintErrors<maxPrintErrors) {
+	    numPrintErrors++;
+	    EXPECT_LT(err, 1.e-6);
+	  } else {
+	    ASSERT_LT(err, 1.e-6);
+	  }
+	}
       }
     }
   }
+#endif
 
   /* free data */
   if (dev_data) cudaFree(dev_data);

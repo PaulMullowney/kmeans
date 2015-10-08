@@ -28,6 +28,11 @@
 #include "host_defines.h"
 
 
+struct __align__(16) float8
+{
+  float a, b, c, d, e, f, g, h;
+};
+
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
