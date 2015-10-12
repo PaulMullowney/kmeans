@@ -27,4 +27,28 @@ __device__ __inline__ double4 fma(double d, double4 x, double4 y) {
   return y;
 }
 
+template<class TYPE, class VTYPE>
+__device__ __inline__ VTYPE scale(TYPE d, VTYPE x) {
+}
+
+template<>
+__device__ __inline__ float2 scale(float d, float2 x) {
+  return make_float2(d*x.x, d*x.y);
+}
+
+template<>
+__device__ __inline__ double2 scale(double d, double2 x) {
+  return make_double2(d*x.x, d*x.y);
+}
+
+template<>
+__device__ __inline__ float4 scale(float d, float4 x) {
+  return make_float4(d*x.x, d*x.y, d*x.z, d*x.w);
+}
+
+template<>
+__device__ __inline__ double4 scale(double d, double4 x) {
+  return make_double4(d*x.x, d*x.y, d*x.z, d*x.w);
+}
+
 #endif /* !defined(_FMA_HCU_) */

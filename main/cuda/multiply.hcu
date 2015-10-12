@@ -5,6 +5,7 @@
 #include "loadA.hcu"
 #include "loadB.hcu"
 #include "fma.hcu"
+#include "swap.hcu"
 #include "dotproducts.hcu"
 #include "writeResults.hcu"
 
@@ -17,6 +18,10 @@ __device__ void multiplyT(TYPE * __restrict__ A, TYPE * __restrict__ B, VTYPE* C
   /* prefetch the first tiles */
   VTYPE Areg = _dev_loadAT<TYPE,VTYPE>(A);
   VTYPE Breg = _dev_loadB<TYPE,VTYPE>(B);
+
+  VTYPE Creg1[N_UNROLL];
+  for (int n=0; n<N_UNROLL; ++n)
+    zero<VTYPE>(Creg1[n]);
 
   /* loop over the interior tiles */
   for (int n=1; n<=dev_N; ++n) {
@@ -32,7 +37,7 @@ __device__ void multiplyT(TYPE * __restrict__ A, TYPE * __restrict__ B, VTYPE* C
     if (n<dev_N || threadIdx.y<DELTA) Breg = _dev_loadB<TYPE,VTYPE>(B);  
 
     /* compute the dot products */
-    _dev_dotproducts<TILESIZEX,TILESIZEX>(Ashmem,Bshmem,Creg);
+    //_dev_dotproducts<TILESIZEX,TILESIZEX>(Ashmem,Bshmem,Creg,Creg1);
     __syncthreads();
   }
 
@@ -42,18 +47,24 @@ __device__ void multiplyT(TYPE * __restrict__ A, TYPE * __restrict__ B, VTYPE* C
   __syncthreads();
   
   /* compute the dot products */
-  _dev_dotproductsF<DELTA,TILESIZEX,TILESIZEX>(Ashmem,Bshmem,Creg);
+  //_dev_dotproductsF<DELTA,TILESIZEX,TILESIZEX>(Ashmem,Bshmem,Creg,Creg1);
+
+  /* swap results */
+  //_dev_swap<TILESIZEX,TILESIZEX>(Ashmem,Bshmem,Creg,Creg1);
 }
 
 template<class TYPE, class VTYPE, const int N_UNROLL, const int DELTA>
-__device__ void multiply(TYPE * __restrict__ A, TYPE * __restrict__ B, VTYPE* Creg,
-			 VTYPE Ashmem[TILESIZEY][TILESIZEY],
-			 VTYPE Bshmem[TILESIZEY][TILESIZEX]) {
+__device__ void multiply(TYPE * __restrict__ A, TYPE * __restrict__ B, 
+			 VTYPE* Creg1, VTYPE* Creg2,
+			 VTYPE Ashmem[TILESIZE][TILESIZEY],
+			 VTYPE Bshmem[TILESIZE][TILESIZEX]) {
 
   /* prefetch the first tiles */
   VTYPE Areg = _dev_loadA<TYPE,VTYPE>(A);
   VTYPE Breg = _dev_loadB<TYPE,VTYPE>(B);
 
+  int ty = (threadIdx.y>>1) % 2;
+  
   /* loop over the interior tiles */
   for (int n=1; n<=dev_N; ++n) {
     /* transfer A registers to shmem */
@@ -64,21 +75,23 @@ __device__ void multiply(TYPE * __restrict__ A, TYPE * __restrict__ B, VTYPE* Cr
     /* load the next A tiles */
     A+=TILESIZE;
     B+=TILESIZE*dev_nColsB;
-    if (n<dev_N || threadIdx.x<DELTA) Areg = _dev_loadA<TYPE,VTYPE>(A);
+    if (n<dev_N || threadIdx.x<DELTA) Areg = _dev_loadA<TYPE,VTYPE>(A);    
     if (n<dev_N || threadIdx.y<DELTA) Breg = _dev_loadB<TYPE,VTYPE>(B);  
 
     /* compute the dot products */
-    _dev_dotproducts<TILESIZEY,TILESIZEX>(Ashmem,Bshmem,Creg);
+    _dev_dotproducts<TILESIZEY,TILESIZEX>(Ashmem,Bshmem,Creg1,Creg2,ty);
     __syncthreads();
   }
-
   /* transfer registers to shmem */
   Ashmem[threadIdx.y][threadIdx.x] = Areg;
   Bshmem[threadIdx.x][threadIdx.y] = Breg;
   __syncthreads();
   
   /* compute the dot products */
-  _dev_dotproductsF<DELTA,TILESIZEY,TILESIZEX>(Ashmem,Bshmem,Creg);
+  _dev_dotproductsF<DELTA,TILESIZEY,TILESIZEX>(Ashmem,Bshmem,Creg1,Creg2,ty);
+
+  /* swap results */
+  _dev_swap<TILESIZEY,TILESIZEX>(Ashmem,Bshmem,Creg1,Creg2,ty);
 }
 
 

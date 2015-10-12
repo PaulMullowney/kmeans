@@ -47,10 +47,17 @@ __device__ __inline__ void _dev_loadA(const double * __restrict__ A, double (&Ar
 
 template<>
 __device__ __inline__ void _dev_loadA(const float * __restrict__ A, float (&Areg)[4]) {
+#if 0
+  Areg[0] = __ldg(A);
+  Areg[1] = __ldg(A+ASTRIDE);
+  Areg[2] = __ldg(A+2*ASTRIDE);
+  Areg[3] = __ldg(A+3*ASTRIDE);
+#else
   Areg[0] = A[0];
   Areg[1] = A[ASTRIDE];
   Areg[2] = A[2*ASTRIDE];
   Areg[3] = A[3*ASTRIDE];
+#endif
 }
 
 template<>

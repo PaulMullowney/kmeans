@@ -54,38 +54,45 @@ __global__ void _dev_ClosestCentersBeginT(const TYPE * __restrict__ A, const TYP
 }
 
 template<class TYPE, class VTYPE, const int N_UNROLL, const int DELTA>
-//__launch_bounds__(256,1)
+__launch_bounds__(256,3)
 __global__ void _dev_ClosestCentersBegin(const TYPE * __restrict__ A, const TYPE * __restrict__ B,
 					 const TYPE * __restrict__ normRowsOfA_squared,
 					 const TYPE * __restrict__ normColsOfB_squared,
 					 TYPE * __restrict__ C, int * __restrict__ Cindices) {
 
-  __shared__ VTYPE Ashmem[TILESIZEY][TILESIZEY];
-  __shared__ VTYPE Bshmem[TILESIZEY][TILESIZEX];
+  __shared__ VTYPE Ashmem[TILESIZE][TILESIZEY];
+  __shared__ VTYPE Bshmem[TILESIZE][TILESIZEX];
 
-  /* read in the vector data from global memory */
-  __shared__ VTYPE L2normB[TILESIZE];
+  /* load the vector data */
+  if (threadIdx.y<4) {
+    TYPE  * z = reinterpret_cast<TYPE *>(&(Ashmem[0][0]));
+    int tid = threadIdx.x + threadIdx.y*blockDim.x;
+    if (tid<dev_nColsB)
+      z[tid] = -0.5f*normColsOfB_squared[blockIdx.x*N_UNROLL*TILESIZE+tid];
+  }
+  __syncthreads();
+
+  VTYPE Creg1[N_UNROLL];
+  VTYPE Creg2[N_UNROLL];
+  for (int n=0; n<N_UNROLL; ++n) {
+    Creg1[n] = Ashmem[0][threadIdx.x];
+    Creg2[n] = Creg1[n];
+  }
+  __syncthreads();
 
   int r = blockIdx.y*N_UNROLL*TILESIZE + N_UNROLL*threadIdx.y;
   int c = blockIdx.x*N_UNROLL*TILESIZE + N_UNROLL*threadIdx.x;
-
-  VTYPE Creg[N_UNROLL];
-  for (int n=0; n<N_UNROLL; ++n)
-    zero<VTYPE>(Creg[n]);
 
   /* matrix matrix multiply */
   TYPE * a = const_cast<TYPE *>(A) + r*dev_nColsA + threadIdx.x;
   TYPE * b = const_cast<TYPE *>(B) + c + threadIdx.y*dev_nColsB;
 
-  multiply<TYPE,VTYPE,N_UNROLL,DELTA>(a, b, Creg, Ashmem, Bshmem);
-
-  /* load the vector data */
-  if (threadIdx.y==0) {
-    _dev_loadVector(c, dev_nColsB, normColsOfB_squared, L2normB[threadIdx.x]);
-  }
-  __syncthreads();
+  multiply<TYPE,VTYPE,N_UNROLL,DELTA>(a, b, Creg1, Creg2, Ashmem, Bshmem);
 
   /* perform the partial reduction over each row in the shmem buffers */
+#if 1
+  _dev_reduction1<TILESIZEY,TILESIZEX>(r, c, Creg1, Ashmem, Bshmem, C, Cindices);
+#else
   _dev_reduction<TILESIZEY,TILESIZEX>(c, Creg, L2normB, Ashmem, Bshmem);
 
   a = reinterpret_cast<TYPE *>(&(Ashmem[threadIdx.y][0]));
@@ -99,12 +106,12 @@ __global__ void _dev_ClosestCentersBegin(const TYPE * __restrict__ A, const TYPE
       Cindices[r*dev_nColsC+blockIdx.x] = (int)b[threadIdx.x];
     }      
   }
+#endif
 }
 
 
 
 template<class TYPE, const int N_UNROLL, const int DELTA>
-//__launch_bounds__(256,1)
 __global__ void _dev_ClosestCentersBeginNew(const TYPE * __restrict__ A, const TYPE * __restrict__ B,
 					    const TYPE * __restrict__ normRowsOfA_squared,
 					    const TYPE * __restrict__ normColsOfB_squared,
@@ -250,9 +257,10 @@ kmeansCudaErrorStatus ClosestCenters(const int m0, const int nRowsA, const int n
       constantMemSet = true;
     }
     CUDA_SAFE_CALL(cudaDeviceSetSharedMemConfig(cudaSharedMemBankSizeEightByte),ERROR_CLOSESTCENTERS);
-    
+    CUDA_SAFE_CALL(cudaDeviceSetCacheConfig(cudaFuncCachePreferL1),ERROR_CLOSESTCENTERS);
     if (isTranspose) {
 
+#if 0
       if (delta==1)
 	_dev_ClosestCentersBeginT<TYPE,VTYPE,N_UNROLL,1><<<grid,block>>>(A,B,normRowsOfA_squared,
 									 normColsOfB_squared,C,Cindices);
@@ -301,9 +309,8 @@ kmeansCudaErrorStatus ClosestCenters(const int m0, const int nRowsA, const int n
       else if (delta==16)
 	_dev_ClosestCentersBeginT<TYPE,VTYPE,N_UNROLL,16><<<grid,block>>>(A,B,normRowsOfA_squared,
 									  normColsOfB_squared,C,Cindices);
-      
+#endif      
     } else {
-
       if (delta==1)
 	_dev_ClosestCentersBegin<TYPE,VTYPE,N_UNROLL,1><<<grid,block>>>(A,B,normRowsOfA_squared,
 									normColsOfB_squared,C,Cindices);

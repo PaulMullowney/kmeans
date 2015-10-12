@@ -41,152 +41,135 @@
 // }
 
 
-template<const int T1, const int T2>
-__device__ __inline__ void _dev_dotproducts(float2 A[TILESIZEY][T1],
-					    float2 B[TILESIZEY][T2],
-					    float2 * Creg) {
-
-  float2 t1, t2;
-  for (int k=0; k<TILESIZE; ++k) {
-    t1 = A[threadIdx.y][k];
-    t2 = B[threadIdx.x][k];
-    Creg[0] = fma<float,float2>(t1.x,t2,Creg[0]);
-    Creg[1] = fma<float,float2>(t1.y,t2,Creg[1]);
-  }
-}
 
 template<const int T1, const int T2>
-__device__ __inline__ void _dev_dotproducts(double2 A[TILESIZEY][T1],
-					    double2 B[TILESIZEY][T2],
-					    double2 * Creg) {
+__device__ __inline__ void _dev_dotproducts(double2 A[TILESIZE][T1],
+					    double2 B[TILESIZE][T2],
+					    double2 * Creg1, double2 * Creg2, int ty) {
 
   double2 t1, t2;
-  for (int k=0; k<TILESIZE; ++k) {
-    t1 = A[threadIdx.y][k];
-    t2 = B[threadIdx.x][k];
-    Creg[0] = fma<double,double2>(t1.x,t2,Creg[0]);
-    Creg[1] = fma<double,double2>(t1.y,t2,Creg[1]);
+  if (ty==0) {
+    for (int k=0; k<TILESIZE; ++k) {
+      t1 = A[threadIdx.y][k];
+      t2 = B[threadIdx.x][k];
+      Creg1[0] = fma<double,double2>(t1.x,t2,Creg1[0]);
+      Creg1[1] = fma<double,double2>(t1.y,t2,Creg1[1]);
+      
+      t1 = A[threadIdx.y+2][k];
+      Creg2[0] = fma<double,double2>(t1.x,t2,Creg2[0]);
+      Creg2[1] = fma<double,double2>(t1.y,t2,Creg2[1]);
+    }
   }
 }
 
 
 template<const int T1, const int T2>
-__device__ __inline__ void _dev_dotproducts(float4 A[TILESIZEY][T1],
-					    float4 B[TILESIZEY][T2],
-					    float4 * Creg) {
-#if 1
-
+__device__ __inline__ void _dev_dotproducts(float4 A[TILESIZE][T1],
+					    float4 B[TILESIZE][T2],
+					    float4 * Creg1, float4 * Creg2, int ty) {
+#if 0
+  if (ty==0) {
 #pragma unroll
-  for (int k=0; k<TILESIZE; k+=2) {
-    float8 * a = reinterpret_cast<float8 *>(&(A[threadIdx.y][k]));
-    float8 d1 = a[0];
-
-    float8 * b = reinterpret_cast<float8 *>(&(B[threadIdx.x][k]));
-    float8 d2 = b[0];
-    float4 t1 = make_float4(d2.a, d2.b, d2.c, d2.d);
-    float4 t2 = make_float4(d2.e, d2.f, d2.g, d2.h);
-
-    Creg[0] = fma<float,float4>(d1.a,t1,Creg[0]);
-    Creg[1] = fma<float,float4>(d1.b,t1,Creg[1]);
-    Creg[2] = fma<float,float4>(d1.c,t1,Creg[2]);
-    Creg[3] = fma<float,float4>(d1.d,t1,Creg[3]);
-
-    Creg[0] = fma<float,float4>(d1.e,t2,Creg[0]);
-    Creg[1] = fma<float,float4>(d1.f,t2,Creg[1]);
-    Creg[2] = fma<float,float4>(d1.g,t2,Creg[2]);
-    Creg[3] = fma<float,float4>(d1.h,t2,Creg[3]);
+    for (int k=0; k<TILESIZE; k+=2) {
+      float8 * a = reinterpret_cast<float8 *>(&(A[threadIdx.y][k]));
+      float8 d1 = a[0];
+      
+      float8 * b = reinterpret_cast<float8 *>(&(B[threadIdx.x][k]));
+      float8 d2 = b[0];
+      float4 t1 = make_float4(d2.a, d2.b, d2.c, d2.d);
+      float4 t2 = make_float4(d2.e, d2.f, d2.g, d2.h);
+      
+      Creg1[0] = fma<float,float4>(d1.a,t1,Creg1[0]);
+      Creg1[1] = fma<float,float4>(d1.b,t1,Creg1[1]);
+      Creg1[2] = fma<float,float4>(d1.c,t1,Creg1[2]);
+      Creg1[3] = fma<float,float4>(d1.d,t1,Creg1[3]);
+      
+      Creg1[0] = fma<float,float4>(d1.e,t2,Creg1[0]);
+      Creg1[1] = fma<float,float4>(d1.f,t2,Creg1[1]);
+      Creg1[2] = fma<float,float4>(d1.g,t2,Creg1[2]);
+      Creg1[3] = fma<float,float4>(d1.h,t2,Creg1[3]);
+      
+      a = reinterpret_cast<float8 *>(&(A[threadIdx.y+2][k]));
+      d1 = a[0];
+      
+      Creg2[0] = fma<float,float4>(d1.a,t1,Creg2[0]);
+      Creg2[1] = fma<float,float4>(d1.b,t1,Creg2[1]);
+      Creg2[2] = fma<float,float4>(d1.c,t1,Creg2[2]);
+      Creg2[3] = fma<float,float4>(d1.d,t1,Creg2[3]);
+      
+      Creg2[0] = fma<float,float4>(d1.e,t2,Creg2[0]);
+      Creg2[1] = fma<float,float4>(d1.f,t2,Creg2[1]);
+      Creg2[2] = fma<float,float4>(d1.g,t2,Creg2[2]);
+      Creg2[3] = fma<float,float4>(d1.h,t2,Creg2[3]);
+    }
   }
-
 #else
 
-  float4 t1, t2;
+  if (ty==0) {
+    float4 t1, t2, t3;
 #pragma unroll
-  for (int k=0; k<TILESIZE; ++k) {
-    t1 = A[threadIdx.y][k];
-    t2 = B[threadIdx.x][k];
-    
-    Creg[0] = fma<float,float4>(t1.x,t2,Creg[0]);
-    Creg[1] = fma<float,float4>(t1.y,t2,Creg[1]);
-    Creg[2] = fma<float,float4>(t1.z,t2,Creg[2]);
-    Creg[3] = fma<float,float4>(t1.w,t2,Creg[3]);
+    for (int k=0; k<TILESIZE; ++k) {
+      t1 = A[threadIdx.y][k];
+      t2 = B[threadIdx.x][k];
+      
+      Creg1[0] = fma<float,float4>(t1.x,t2,Creg1[0]);
+      Creg1[1] = fma<float,float4>(t1.y,t2,Creg1[1]);
+      Creg1[2] = fma<float,float4>(t1.z,t2,Creg1[2]);
+      Creg1[3] = fma<float,float4>(t1.w,t2,Creg1[3]);
+
+      t3 = A[threadIdx.y+2][k];
+
+      Creg2[0] = fma<float,float4>(t3.x,t2,Creg2[0]);
+      Creg2[1] = fma<float,float4>(t3.y,t2,Creg2[1]);
+      Creg2[2] = fma<float,float4>(t3.z,t2,Creg2[2]);
+      Creg2[3] = fma<float,float4>(t3.w,t2,Creg2[3]);
+    }
   }
 #endif
 }
 
-
-template<const int T1, const int T2>
-__device__ __inline__ void _dev_dotproducts(double4 A[TILESIZEY][T1],
-					    double4 B[TILESIZEY][T2],
-					    double4 * Creg) {
-
-  double4 t1, t2;
-#pragma unroll
-  for (int k=0; k<TILESIZE; ++k) {
-    t1 = A[threadIdx.y][k];
-    t2 = B[threadIdx.x][k];
-    Creg[0] = fma<double,double4>(t1.x,t2,Creg[0]);
-    Creg[1] = fma<double,double4>(t1.y,t2,Creg[1]);
-    Creg[2] = fma<double,double4>(t1.z,t2,Creg[2]);
-    Creg[3] = fma<double,double4>(t1.w,t2,Creg[3]);
-  }
-}
-
 template<const int LENGTH, const int T1, const int T2>
-__device__ __inline__ void _dev_dotproductsF(float4 A[TILESIZEY][T1],
-					     float4 B[TILESIZEY][T2],
-					     float4 * Creg) {
+__device__ __inline__ void _dev_dotproductsF(float4 A[TILESIZE][T1],
+					     float4 B[TILESIZE][T2],
+					     float4 * Creg1, float4 * Creg2, int ty) {
+
   float4 t1, t2;
+  if (ty==0) {
 #pragma unroll
-  for (int k=0; k<LENGTH; ++k) {
-    t1 = A[threadIdx.y][k];
-    t2 = B[threadIdx.x][k];
+    for (int k=0; k<LENGTH; ++k) {
+      t1 = A[threadIdx.y][k];
+      t2 = B[threadIdx.x][k];
+      
+      Creg1[0] = fma<float,float4>(t1.x,t2,Creg1[0]);
+      Creg1[1] = fma<float,float4>(t1.y,t2,Creg1[1]);
+      Creg1[2] = fma<float,float4>(t1.z,t2,Creg1[2]);
+      Creg1[3] = fma<float,float4>(t1.w,t2,Creg1[3]);
 
-    Creg[0] = fma<float,float4>(t1.x,t2,Creg[0]);
-    Creg[1] = fma<float,float4>(t1.y,t2,Creg[1]);
-    Creg[2] = fma<float,float4>(t1.z,t2,Creg[2]);
-    Creg[3] = fma<float,float4>(t1.w,t2,Creg[3]);
-  }
-}
-
-
-template<const int LENGTH, const int T1, const int T2>
-__device__ __inline__ void _dev_dotproductsF(double4 A[TILESIZEY][T1],
-					     double4 B[TILESIZEY][T2],
-					     double4 * Creg) {
-  double4 t1, t2;
-  for (int k=0; k<LENGTH; ++k) {
-    t1 = A[threadIdx.y][k];
-    t2 = B[threadIdx.x][k];
-    Creg[0] = fma<double,double4>(t1.x,t2,Creg[0]);
-    Creg[1] = fma<double,double4>(t1.y,t2,Creg[1]);
-    Creg[2] = fma<double,double4>(t1.z,t2,Creg[2]);
-    Creg[3] = fma<double,double4>(t1.w,t2,Creg[3]);
+      t1 = A[threadIdx.y+2][k];
+      Creg2[0] = fma<float,float4>(t1.x,t2,Creg2[0]);
+      Creg2[1] = fma<float,float4>(t1.y,t2,Creg2[1]);
+      Creg2[2] = fma<float,float4>(t1.z,t2,Creg2[2]);
+      Creg2[3] = fma<float,float4>(t1.w,t2,Creg2[3]);
+    }
   }
 }
 
 template<const int LENGTH, const int T1, const int T2>
-__device__ __inline__ void _dev_dotproductsF(float2 A[TILESIZEY][T1],
-					     float2 B[TILESIZEY][T2],
-					     float2 * Creg) {
-  float2 t1, t2;
-  for (int k=0; k<LENGTH; ++k) {
-    t1 = A[threadIdx.y][k];
-    t2 = B[threadIdx.x][k];
-    Creg[0] = fma<float,float2>(t1.x,t2,Creg[0]);
-    Creg[1] = fma<float,float2>(t1.y,t2,Creg[1]);
-  }
-}
-
-template<const int LENGTH, const int T1, const int T2>
-__device__ __inline__ void _dev_dotproductsF(double2 A[TILESIZEY][T1],
-					     double2 B[TILESIZEY][T2],
-					     double2 * Creg) {
+__device__ __inline__ void _dev_dotproductsF(double2 A[TILESIZE][T1],
+					     double2 B[TILESIZE][T2],
+					     double2 * Creg1, double2 * Creg2, int ty) {
   double2 t1, t2;
-  for (int k=0; k<LENGTH; ++k) {
-    t1 = A[threadIdx.y][k];
-    t2 = B[threadIdx.x][k];
-    Creg[0] = fma<double,double2>(t1.x,t2,Creg[0]);
-    Creg[1] = fma<double,double2>(t1.y,t2,Creg[1]);
+  if (ty==0) {
+    for (int k=0; k<LENGTH; ++k) {
+      t1 = A[threadIdx.y][k];
+      t2 = B[threadIdx.x][k];
+      Creg1[0] = fma<double,double2>(t1.x,t2,Creg1[0]);
+      Creg1[1] = fma<double,double2>(t1.y,t2,Creg1[1]);
+
+      t1 = A[threadIdx.y+2][k];
+      Creg2[0] = fma<double,double2>(t1.x,t2,Creg2[0]);
+      Creg2[1] = fma<double,double2>(t1.y,t2,Creg2[1]);
+    }
   }
 }
 
