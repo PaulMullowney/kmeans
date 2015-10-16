@@ -2,6 +2,43 @@
 #define _VECTOR_MIN_HCU_
 
 template<class TYPE, class VTYPE>
+__device__ __inline__ void vectorMax(VTYPE x, TYPE& xmax, int& index) {
+}
+
+template<>
+__device__ __inline__ void vectorMax(double2 x, double& xmax, int& index) {
+  if (x.y>x.x) { 
+    xmax = x.y;
+    index = 1;
+  } else {
+    xmax = x.x;
+    index = 0;
+  }
+}
+
+template<>
+__device__ __inline__ void vectorMax(float4 x, float& xmax, int& index) {
+  int i1=2;
+  float xmax1=x.z;
+
+  xmax = x.x;
+  index = 0;
+  if (x.y>xmax) { 
+    xmax = x.y;
+    index = 1;
+  }
+  if (x.w>xmax1) { 
+    xmax1 = x.w;
+    i1 = 3;
+  }
+  if (xmax1>xmax) { 
+    xmax = xmax1;
+    index = i1;
+  } 
+}
+
+
+template<class TYPE, class VTYPE>
 __device__ __inline__ void vectorMin(VTYPE x, TYPE& xmin, int& index) {
 }
 

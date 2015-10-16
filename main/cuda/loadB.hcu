@@ -1,6 +1,7 @@
 #if !defined(_LOAD_B_HCU_)
 #define _LOAD_B_HCU_
 
+
 template<class TYPE, class VTYPE>
 __device__ __inline__ VTYPE _dev_loadB(const TYPE * __restrict__ B) {
 }
@@ -9,14 +10,12 @@ template<>
 __device__ __inline__ float2 _dev_loadB(const float * __restrict__ B) {
   const float2 * b = reinterpret_cast<const float2 *>(B);
   return b[0];
-  //return make_float2(B[0], B[TILESIZE]); 
 }
 
 template<>
 __device__ __inline__ double2 _dev_loadB(const double * __restrict__ B) {
   const double2 * b = reinterpret_cast<const double2 *>(B);
   return b[0];
-  //return make_double2(B[0], B[TILESIZE]); 
 }
 
 
@@ -24,14 +23,13 @@ template<>
 __device__ __inline__ float4 _dev_loadB(const float * __restrict__ B) {
   const float4 * b = reinterpret_cast<const float4 *>(B);
   return b[0];
-  //return make_float4(B[0], B[TILESIZE], B[2*TILESIZE], B[3*TILESIZE]);
+  
 }
 
 template<>
 __device__ __inline__ double4 _dev_loadB(const double * __restrict__ B) {
   const double4 * b = reinterpret_cast<const double4 *>(B);
   return b[0];
-  //return make_double4(B[0], B[TILESIZE], B[2*TILESIZE], B[3*TILESIZE]);
 }
 
 

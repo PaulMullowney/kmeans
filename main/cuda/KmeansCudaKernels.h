@@ -80,8 +80,10 @@ __constant__ __device__ int dev_nRowsA;
 __constant__ __device__ int dev_nColsA;
 __constant__ __device__ int dev_nRowsB;
 __constant__ __device__ int dev_nColsB;
+__constant__ __device__ int dev_nColsBPadded;
 __constant__ __device__ int dev_nColsC;
 __constant__ __device__ int ASTRIDE;
+__constant__ __device__ int BSTRIDE;
 
 /** 
  * @file 
@@ -148,6 +150,7 @@ extern "C" {
    * @param A a pointer to the left hand side matrix (C ordering)
    * @param nColsC the number of rows in C
    * @param B a pointer to the right hand side matrix (C ordering)
+   * @param B a pointer to the padded right hand side matrix (C ordering)
    * @param normRowsOfA_squared L2 norm squared of the rows of A
    * @param normColsOfB_squared L2 norm squared of the columns of B
    * @param the number of columns in the result data structure
@@ -159,7 +162,7 @@ extern "C" {
    */
   DllExport kmeansCudaErrorStatus ClosestCentersF(const int m0, const int nRowsA, 
 						  const int nColsA, const float *A, 
-						  const int nColsB, const float *B, 
+						  const int nColsB, const float *B, float *Bpadded,
 						  const float * normRowsOfA_squared,
 						  const float * normColsOfB_squared,
 						  const int nColsC, float * C, int *Cindices,
@@ -176,6 +179,7 @@ extern "C" {
    * @param A a pointer to the left hand side matrix (C ordering)
    * @param nColsC the number of rows in C
    * @param B a pointer to the right hand side matrix (C ordering)
+   * @param B a pointer to the padded right hand side matrix (C ordering)
    * @param normRowsOfA_squared L2 norm squared of the rows of A
    * @param normColsOfB_squared L2 norm squared of the columns of B
    * @param the number of columns in the result data structure
@@ -187,7 +191,7 @@ extern "C" {
    */
   DllExport kmeansCudaErrorStatus ClosestCentersD(const int m0, const int nRowsA, 
 						  const int nColsA, const double *A, 
-						  const int nColsB, const double *B, 
+						  const int nColsB, const double *B, double *Bpadded,
 						  const double * normRowsOfA_squared,
 						  const double * normColsOfB_squared,
 						  const int nColsC, double * C, int *Cindices,
@@ -411,6 +415,7 @@ extern "C" {
  * @param A a pointer to the left hand side matrix or the Transpose (C ordering)
  * @param nColsC the number of rows in C
  * @param B a pointer to the right hand side matrix (C ordering)
+ * @param B a pointer to the padded right hand side matrix (C ordering)
  * @param normRowsOfA_squared L2 norm squared of the rows of A
  * @param normColsOfB_squared L2 norm squared of the columns of B
  * @param the number of columns in the result data structure
@@ -423,7 +428,7 @@ extern "C" {
 template<class TYPE>
 DllExport kmeansCudaErrorStatus ClosestCenters(const int m0, const int nRowsA, const int nColsA, 
 					       const bool isTranspose, const TYPE *A,
-					       const int nColsB, const TYPE *B, 
+					       const int nColsB, const TYPE *B, TYPE *Bpadded, 
 					       const TYPE * normRowsOfA_squared,
 					       const TYPE * normColsOfB_squared,
 					       const int nColsC, TYPE * C, int *Cindices,

@@ -103,6 +103,7 @@ kmeans<TYPE>::kmeans(const int m, const int n, const int k,
   this->dev_partial_reduction_indices = NULL;
   this->dev_ccindex = NULL;
   this->dev_centers = NULL;
+  this->dev_centers_padded = NULL;
   this->dev_centers_transpose = NULL;
   this->dev_centers_large = NULL;
   this->dev_centers_norm_squared = NULL;
@@ -154,6 +155,12 @@ kmeans<TYPE>::~kmeans() {
   /* centers data structures */
   if (this->dev_centers) {
     if (cudaSuccess != cudaFree(this->dev_centers))
+      printf("%s(%i) : CUDA Runtime API error : %s.\n",
+	     __FILE__, __LINE__, cudaGetErrorString(cudaGetLastError()));
+  }
+
+  if (this->dev_centers_padded) {
+    if (cudaSuccess != cudaFree(this->dev_centers_padded))
       printf("%s(%i) : CUDA Runtime API error : %s.\n",
 	     __FILE__, __LINE__, cudaGetErrorString(cudaGetLastError()));
   }
@@ -286,11 +293,14 @@ kmeansErrorStatus kmeans<TYPE>::computeTiling() {
     uint64_t fixedMemory = 0;
     int mCompute = this->useMiniBatch ? this->m_mb : this->m;
     int mComputePadded = this->useMiniBatch ? this->m_mb_padded : this->m_padded;
+    int k_padded = ((k + this->factor -1)/this->factor)*this->factor;
 
     fixedMemory += (uint64_t) (2*this->m * sizeof(TYPE));
     fixedMemory += (uint64_t) (this->m * sizeof(int));
     fixedMemory += (uint64_t) (this->n * this->k * sizeof(TYPE));
     fixedMemory += (uint64_t) (this->n * this->k * sizeof(TYPE));
+    if (k_padded!=this->k)
+      fixedMemory += (uint64_t) (this->n * k_padded * sizeof(TYPE));
     fixedMemory += (uint64_t) (getMaxConcurrentBlocks() * this->n * this->k * sizeof(TYPE));
     fixedMemory += (uint64_t) (this->k * sizeof(TYPE));
     fixedMemory += (uint64_t) (this->k * sizeof(int));
@@ -557,6 +567,13 @@ kmeansErrorStatus kmeans<TYPE>::buildData(const TYPE * data) {
     /* the device cluster centers transposed */
     CUDA_API_SAFE_CALL(cudaMalloc((void**)&(this->dev_centers_transpose), nBytes), KMEANS_ERROR_BUILDDATA);
     CUDA_API_SAFE_CALL(cudaMemset(this->dev_centers_transpose, 0, nBytes), KMEANS_ERROR_BUILDDATA);
+
+    int k_padded = ((k + this->factor -1)/this->factor)*this->factor;
+    if (k_padded!=this->k) {
+      nBytes = this->n * k_padded * sizeof(TYPE);
+      CUDA_API_SAFE_CALL(cudaMalloc((void**)&(this->dev_centers_padded), nBytes), KMEANS_ERROR_BUILDDATA);
+      CUDA_API_SAFE_CALL(cudaMemset(this->dev_centers_padded, 0, nBytes), KMEANS_ERROR_BUILDDATA);
+    }
 
     /* the large device cluster centers */
     nBytes = getMaxConcurrentBlocks() * this->n * this->k * sizeof(TYPE);
@@ -925,7 +942,7 @@ kmeansErrorStatus kmeans<TYPE>::closestCenters() {
 	: this->dev_data_norm_squared;
     
     err = ClosestCenters<TYPE>(m_start, m_compute, this->n, this->hasMatrixTranspose,
-			       srcData, this->k, this->dev_centers,
+			       srcData, this->k, this->dev_centers, this->dev_centers_padded,
 			       srcDataNormSquared, this->dev_centers_norm_squared,
 			       this->p, this->dev_partial_reduction,
 			       this->dev_partial_reduction_indices,

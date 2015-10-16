@@ -61,7 +61,7 @@ __device__ void multiply(TYPE * __restrict__ A, TYPE * __restrict__ B,
 
   /* prefetch the first tiles */
   VTYPE Areg = _dev_loadA<TYPE,VTYPE>(A);
-  VTYPE Breg = _dev_loadB<TYPE,VTYPE>(B);
+  VTYPE Breg = _dev_loadB<TYPE,VTYPE>(B);  
 
   int ty = (threadIdx.y>>1) % 2;
   
@@ -74,7 +74,8 @@ __device__ void multiply(TYPE * __restrict__ A, TYPE * __restrict__ B,
     
     /* load the next A tiles */
     A+=TILESIZE;
-    B+=TILESIZE*dev_nColsB;
+    B+=BSTRIDE;
+
     if (n<dev_N || threadIdx.x<DELTA) Areg = _dev_loadA<TYPE,VTYPE>(A);    
     if (n<dev_N || threadIdx.y<DELTA) Breg = _dev_loadB<TYPE,VTYPE>(B);  
 
@@ -82,10 +83,12 @@ __device__ void multiply(TYPE * __restrict__ A, TYPE * __restrict__ B,
     _dev_dotproducts<TILESIZEY,TILESIZEX>(Ashmem,Bshmem,Creg1,Creg2,ty);
     __syncthreads();
   }
-  /* transfer registers to shmem */
+
+
+  /* transfer A registers to shmem */
   Ashmem[threadIdx.y][threadIdx.x] = Areg;
   Bshmem[threadIdx.x][threadIdx.y] = Breg;
-  __syncthreads();
+  __syncthreads();  
   
   /* compute the dot products */
   _dev_dotproductsF<DELTA,TILESIZEY,TILESIZEX>(Ashmem,Bshmem,Creg1,Creg2,ty);

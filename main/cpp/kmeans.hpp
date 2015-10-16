@@ -580,12 +580,19 @@ private:
   int * dev_ccindex;
 
   /**
-   * A device array of size k x n containing the cluster centers (Fortran ordered)
+   * A device array of size k x n containing the cluster centers (C ordered)
    */
   TYPE * dev_centers;
 
   /**
    * A device array of size k x n containing the cluster centers (C ordered)
+   * Here we pad to the next multiple of N_UNROLL*TILESIZE (in the columns direction) 
+   * in order to guarantee alignment
+   */
+  TYPE * dev_centers_padded;
+
+  /**
+   * A device array of size k x n containing the cluster centers (Fortran ordered)
    */
   TYPE * dev_centers_transpose;
 
