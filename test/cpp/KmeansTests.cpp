@@ -14,7 +14,7 @@ class KmeansTests : public testing::Test {
   int k;
   int nIters;
   int useCublas;
-  bool useTranspose;
+  int useStriped;
   float rtol;
   float fraction;
 
@@ -37,7 +37,7 @@ class KmeansTests : public testing::Test {
       k = atoi(my_argv[4]);
       nIters = atoi(my_argv[5]);
       useCublas = atoi(my_argv[6]);
-      useTranspose = atoi(my_argv[7]);
+      useStriped = atoi(my_argv[7]);
       rtol = atof(my_argv[8]);
       fraction = atof(my_argv[9]);
     } else {
@@ -47,7 +47,7 @@ class KmeansTests : public testing::Test {
       k = 256;
       nIters = 50;
       useCublas = 0;
-      useTranspose = false;
+      useStriped = false;
       rtol = 1.e-5;
       fraction = 1.0;
     }
@@ -94,7 +94,7 @@ TEST_F(KmeansTests, TEST) {
   memset(centers, 0, sizeof(float)*k*n);
 
   /* run kmeans */
-  err = computeKmeansF(data,m,n,k,rtol,nIters,1,0,useCublas,(useTranspose==1 ? true : false),centers,fraction);
+  err = computeKmeansF(data,m,n,k,rtol,nIters,1,0,useCublas,useStriped,centers,fraction);
   if (err!=KMEANS_SUCCESS) {
     cout << "Kmeans(CUBLAS) internal error '" << kmeansGetErrorString(err) << "'" <<  endl;
   }

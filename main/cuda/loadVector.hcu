@@ -41,6 +41,21 @@ __device__ __inline__ void _dev_loadVector(const int i, const int n,
   if (i+3<n) xreg.w =  x[i+3];
 }
 
+
+template<>
+__device__ __inline__ void _dev_loadVector(const int i, const int n, 
+					   const float * __restrict__ x, 
+					   float6& xreg) {
+
+  zero<float6>(xreg);
+  if (i<n)   xreg.a =  x[i];
+  if (i+1<n) xreg.b =  x[i+1];
+  if (i+2<n) xreg.c =  x[i+2];
+  if (i+3<n) xreg.d =  x[i+3];
+  if (i+4<n) xreg.e =  x[i+4];
+  if (i+5<n) xreg.f =  x[i+5];
+}
+
 template<>
 __device__ __inline__ void _dev_loadVector(const int i, const int n, 
 						  const double * __restrict__ x, 

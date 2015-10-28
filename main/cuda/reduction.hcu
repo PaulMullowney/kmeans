@@ -96,7 +96,7 @@ __device__ __inline__ void _dev_reduction1(const int r, const int c, float4 * Cr
   i.y+=c;
   i.z+=c;
   i.w+=c;
-  
+
   for (int n=1; n<TILESIZE; n<<=1) {
     t.x = __shfl_down(s.x, n, TILESIZE);
     j.x = __shfl_down(i.x, n, TILESIZE);
@@ -129,12 +129,98 @@ __device__ __inline__ void _dev_reduction1(const int r, const int c, float4 * Cr
 
   t.x = s.x;
   j.x = i.x;
+  
+  float * a = reinterpret_cast<float *>(&t);
+  int * b = reinterpret_cast<int *>(&j);
+    
+  /* write out the results */
+  if (threadIdx.x<4) {
+    int k = r + threadIdx.x;
+    if (k<dev_nRowsA) {
+      int index = k*dev_nColsC+blockIdx.x;
+      C[index]        = -2.0f*a[threadIdx.x];
+      Cindices[index] = b[threadIdx.x];
+    }
+  }
+}
+
+template<const int T1, const int T2>
+__device__ __inline__ void _dev_reduction1(const int r, const int c, float6 * Creg,
+					   float6 A[TILESIZEY][T1],
+					   float6 B[TILESIZEY][T2],
+					   float * __restrict__ C,
+					   int * __restrict__ Cindices) {
+
+  int6 i;
+  int6 j;
+  float6 s, t;
+
+  vectorMax<float,float6>(Creg[0],s.a,i.a);
+  vectorMax<float,float6>(Creg[1],s.b,i.b);
+  vectorMax<float,float6>(Creg[2],s.c,i.c);
+  vectorMax<float,float6>(Creg[3],s.d,i.d);
+  vectorMax<float,float6>(Creg[4],s.e,i.e);
+  vectorMax<float,float6>(Creg[5],s.f,i.f);
+
+  i.a+=c;
+  i.b+=c;
+  i.c+=c;
+  i.d+=c;
+  i.e+=c;
+  i.f+=c;
+  
+  for (int n=1; n<TILESIZE; n<<=1) {
+    t.a = __shfl_down(s.a, n, TILESIZE);
+    j.a = __shfl_down(i.a, n, TILESIZE);
+
+    t.b = __shfl_down(s.b, n, TILESIZE);
+    j.b = __shfl_down(i.b, n, TILESIZE);
+
+    t.c = __shfl_down(s.c, n, TILESIZE);
+    j.c = __shfl_down(i.c, n, TILESIZE);
+
+    t.d = __shfl_down(s.d, n, TILESIZE);
+    j.d = __shfl_down(i.d, n, TILESIZE);
+
+    t.e = __shfl_down(s.e, n, TILESIZE);
+    j.e = __shfl_down(i.e, n, TILESIZE);
+
+    t.f = __shfl_down(s.f, n, TILESIZE);
+    j.f = __shfl_down(i.f, n, TILESIZE);
+
+    if ((threadIdx.x%(n*2))==0) {
+      if (s.a<t.a) { i.a = j.a; s.a=t.a; }
+      if (s.b<t.b) { i.b = j.b; s.b=t.b; }
+      if (s.c<t.c) { i.c = j.c; s.c=t.c; }
+      if (s.d<t.d) { i.d = j.d; s.d=t.d; }
+      if (s.e<t.e) { i.e = j.e; s.e=t.e; }
+      if (s.f<t.f) { i.f = j.f; s.f=t.f; }
+    }
+  }
+
+  t.f = __shfl_up(s.f, 5, TILESIZE);
+  j.f = __shfl_up(i.f, 5, TILESIZE);
+
+  t.e = __shfl_up(s.e, 4, TILESIZE);
+  j.e = __shfl_up(i.e, 4, TILESIZE);
+
+  t.d = __shfl_up(s.d, 3, TILESIZE);
+  j.d = __shfl_up(i.d, 3, TILESIZE);
+
+  t.c = __shfl_up(s.c, 2, TILESIZE);
+  j.c = __shfl_up(i.c, 2, TILESIZE);
+
+  t.b = __shfl_up(s.b, 1, TILESIZE);
+  j.b = __shfl_up(i.b, 1, TILESIZE);
+
+  t.a = s.a;
+  j.a = i.a;
 
   float * a = reinterpret_cast<float *>(&t);
   int * b = reinterpret_cast<int *>(&j);
 
   /* write out the results */
-  if (threadIdx.x<4) {
+  if (threadIdx.x<6) {
     int k = r+threadIdx.x;
     if (k<dev_nRowsA) {
       int index = k*dev_nColsC+blockIdx.x;
@@ -143,6 +229,7 @@ __device__ __inline__ void _dev_reduction1(const int r, const int c, float4 * Cr
     }
   }
 }
+
 
 template<const int T1, const int T2>
 __device__ __inline__ void _dev_reduction1(const int r, const int c, double4 * Creg,

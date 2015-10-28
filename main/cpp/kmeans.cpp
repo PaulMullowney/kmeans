@@ -4,7 +4,7 @@ template<class TYPE>
 kmeans<TYPE>::kmeans(const int m, const int n, const int k,
 		     const TYPE criterion, const int maxIters,
 		     const int numRetries, const int initAlgorithm,
-		     const int useCUBLAS, const bool useTranspose,
+		     const int useCUBLAS, const int matrixFormat,
 		     const TYPE miniBatchFraction) {
 
   /* allocate timers */
@@ -52,10 +52,14 @@ kmeans<TYPE>::kmeans(const int m, const int n, const int k,
   this->entireDatasetIsOnDevice = false;
 
   this->smallMiniBatch = false;
+  
+  this->useStriped = false;
 
-  this->useTranspose = useTranspose;
-  cout << "useTranspose = " << this->useTranspose << endl;
-  this->hasMatrixTranspose = false;
+  if (matrixFormat==1)
+    this->useStriped = true;
+
+  cout << "useStriped = " << this->useStriped << endl;
+  this->hasStripedMatrix = false;
 
   /* mini batch parameters */
   if (miniBatchFraction<1.0) {
@@ -94,7 +98,7 @@ kmeans<TYPE>::kmeans(const int m, const int n, const int k,
   /* set the pointers to NULL */
   this->host_data = NULL;
   this->dev_data = NULL;
-  this->dev_data_transpose = NULL;
+  this->dev_data_aux = NULL;
   this->dev_data_mb = NULL;
   this->dev_mmMult = NULL;
   this->dev_data_norm_squared = NULL;
@@ -132,8 +136,8 @@ kmeans<TYPE>::~kmeans() {
 	     __FILE__, __LINE__, cudaGetErrorString(cudaGetLastError()));
   }
 
-  if (this->dev_data_transpose) {
-    if (cudaSuccess != cudaFree(this->dev_data_transpose))
+  if (this->dev_data_aux) {
+    if (cudaSuccess != cudaFree(this->dev_data_aux))
       printf("%s(%i) : CUDA Runtime API error : %s.\n",
 	     __FILE__, __LINE__, cudaGetErrorString(cudaGetLastError()));
   }
@@ -448,17 +452,20 @@ kmeansErrorStatus kmeans<TYPE>::computeTiling() {
       /*********************************/
 
       /* variable memory */
-      /* allow a factor of 2 for storing the transpose */
-      varMemoryArray = (uint64_t) 2*(this->m_padded * this->n * sizeof(TYPE));      
+      /* allow a factor of 2 for storing the striped matrix */
+      int multiplier = 1;
+      if (this->useStriped) multiplier=2;
+
+      varMemoryArray = (uint64_t) multiplier*(this->m_padded * this->n * sizeof(TYPE));      
 
       /* total required memory */
       requiredMemory =  fixedMemory + varMemoryArray + varMemoryMMResult;
 
       this->nTiles=1;
 
-      if (requiredMemory<.95*freeMemory && this->useTranspose) {
-	std::cout << "Build Matrix Transpose" << std::endl;
-	this->hasMatrixTranspose = true;
+      if (requiredMemory<.95*freeMemory && this->useStriped) {
+	std::cout << "Build Striped Matrix" << std::endl;
+	this->hasStripedMatrix = true;
       } else {
 	varMemoryArray = (uint64_t) (this->m_padded * this->n * sizeof(TYPE));
 	
@@ -634,12 +641,12 @@ kmeansErrorStatus kmeans<TYPE>::buildData(const TYPE * data) {
     CUDA_API_SAFE_CALL(cudaMalloc((void**)&(this->dev_data), nBytes), KMEANS_ERROR_BUILDDATA);
     CUDA_API_SAFE_CALL(cudaMemset(this->dev_data, 0, nBytes), KMEANS_ERROR_BUILDDATA);
 
-    /* input data transpose */
-    if (this->hasMatrixTranspose) {
-      std::cout << "matrixRows = " << matrixRows << std::endl;
-      nBytes = matrixRows * this->n * sizeof(TYPE);
-      CUDA_API_SAFE_CALL(cudaMalloc((void**)&(this->dev_data_transpose), nBytes), KMEANS_ERROR_BUILDDATA);
-      CUDA_API_SAFE_CALL(cudaMemset(this->dev_data_transpose, 0, nBytes), KMEANS_ERROR_BUILDDATA);
+    /* striped input data */
+    if (this->hasStripedMatrix) {
+      int n_rounded_up = ((this->n + TILESIZE - 1)/TILESIZE)*TILESIZE;
+      nBytes = this->m_padded * n_rounded_up * sizeof(TYPE);
+      CUDA_API_SAFE_CALL(cudaMalloc((void**)&(this->dev_data_aux), nBytes), KMEANS_ERROR_BUILDDATA);
+      CUDA_API_SAFE_CALL(cudaMemset(this->dev_data_aux, 0, nBytes), KMEANS_ERROR_BUILDDATA);
     }
 
     /* norm squared of each row of the input data */
@@ -694,22 +701,34 @@ kmeansErrorStatus kmeans<TYPE>::copyTileToDevice(bool standardApproach) {
 			   KMEANS_ERROR_COPY_TILE);
       }
       if (this->nTiles==1) {
-	if (this->hasMatrixTranspose && !this->entireDatasetIsOnDevice) {
-	  TYPE one = 1.0;
-	  TYPE zero = 0.0;
+	if (this->hasStripedMatrix && !this->entireDatasetIsOnDevice) {
+	  /* build the striped matrix */
+	  int n_rounded_up = ((this->n + TILESIZE - 1)/TILESIZE)*TILESIZE;
+	  int nBytes = this->m_padded*n_rounded_up;
+	  TYPE * stripedMatrix = new TYPE[nBytes];
+	  memset(stripedMatrix, 0, nBytes);
 
-	  printf("%d %d\n",this->m, this->m_padded);
-	  /* compute the transpose */
-	  if (sizeof(TYPE) == 4) {
-	    CUBLAS_API_SAFE_CALL(cublasSgeam(this->handle, CUBLAS_OP_T, CUBLAS_OP_T, this->m_padded, this->n,
-					     (const float *)&one, (const float *) this->dev_data, this->n,
-					     (const float *)&zero, (const float *) this->dev_data, this->n,
-					     (float *) this->dev_data_transpose, this->m_padded),
-				 KMEANS_ERROR_TRANSPOSE);
+	  for (int i=0; i<this->m; ++i) {
+	    for (int j=0; j<this->n; ++j) {
+	      int index = i*this->n + j;
+	      TYPE datum = this->host_data[index];
+	    
+	      int stripe = j/TILESIZE;
+	      int columnInStripe = j%TILESIZE;
+
+	      index = stripe*this->m_padded*TILESIZE + i*TILESIZE + columnInStripe;
+	      stripedMatrix[index] = datum;
+	    }
 	  }
-	  else {
-	  }
+
+	  /* copy the striped matrix to the device */
+	  CUDA_API_SAFE_CALL(cudaMemcpy(this->dev_data_aux,stripedMatrix,nBytes*sizeof(TYPE),cudaMemcpyHostToDevice),
+			     KMEANS_ERROR_COPY_TILE);
+
+	  /* free the temp */
+	  delete [] stripedMatrix;
 	}
+
 	this->entireDatasetIsOnDevice=true;
       }
 
@@ -937,11 +956,11 @@ kmeansErrorStatus kmeans<TYPE>::closestCenters() {
   else {
     int m_start =   this->useMiniBatch ? 0          : this->mStart[this->iTile];
     int m_compute = this->useMiniBatch ? this->m_mb : this->mTile[this->iTile];
-    TYPE * srcData = this->useMiniBatch ? this->dev_data_mb : this->hasMatrixTranspose ? this->dev_data_transpose : this->dev_data;
+    TYPE * srcData = this->useMiniBatch ? this->dev_data_mb : (this->useStriped ? this->dev_data_aux : this->dev_data);
     TYPE * srcDataNormSquared = this->useMiniBatch ? this->dev_data_norm_squared_mb 
 	: this->dev_data_norm_squared;
     
-    err = ClosestCenters<TYPE>(m_start, m_compute, this->n, this->hasMatrixTranspose,
+    err = ClosestCenters<TYPE>(m_start, m_compute, this->n, this->hasStripedMatrix,
 			       srcData, this->k, this->dev_centers, this->dev_centers_padded,
 			       srcDataNormSquared, this->dev_centers_norm_squared,
 			       this->p, this->dev_partial_reduction,
@@ -1259,14 +1278,14 @@ DllExport kmeansErrorStatus KMEANS_API computeKmeansF(const float * data, const 
 						      const int k, const float criterion,
 						      const int maxIters, const int numRetries,
 						      const int initAlgorithm, const int useCUBLAS,
-						      const bool useTranspose, 
+						      const int matrixFormat, 
 						      float * result, const float miniBatchFraction) {
 
   kmeansErrorStatus err = KMEANS_SUCCESS;
 
   /* Allocate an instance of kmeans */
   kmeans<float> * KMEANS = new kmeans<float>(m, n, k, criterion, maxIters, numRetries,
-					     initAlgorithm, useCUBLAS, useTranspose, 
+					     initAlgorithm, useCUBLAS, matrixFormat, 
 					     miniBatchFraction);
 
   /* compute the tiling */
@@ -1307,14 +1326,14 @@ DllExport kmeansErrorStatus KMEANS_API computeKmeansD(const double * data, const
 						      const int k, const double criterion,
 						      const int maxIters, const int numRetries,
 						      const int initAlgorithm, const int useCUBLAS,
-						      const bool useTranspose, 
+						      const int matrixFormat, 
 						      double * result, const double miniBatchFraction) {
 
   kmeansErrorStatus err = KMEANS_SUCCESS;
 
   /* Allocate an instance of kmeans */
   kmeans<double> * KMEANS = new kmeans<double>(m, n, k, criterion, maxIters, numRetries,
-					       initAlgorithm, useCUBLAS, useTranspose, 
+					       initAlgorithm, useCUBLAS, matrixFormat, 
 					       miniBatchFraction);
 
   /* compute the tiling */

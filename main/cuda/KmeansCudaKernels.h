@@ -28,10 +28,37 @@
 #include "host_defines.h"
 
 
-struct __align__(16) float8
+struct __align__(8) float6
 {
-  float a, b, c, d, e, f, g, h;
+  float a, b, c, d, e, f;
 };
+
+__inline__ __device__ float6 make_float6(float a, float b, float c, float d, float e, float f) {
+  float6 y;
+  y.a = a;
+  y.b = b;
+  y.c = c;
+  y.d = d;
+  y.e = e;
+  y.f = f;
+  return y;
+}
+
+struct __align__(8) int6
+{
+  int a, b, c, d, e, f;
+};
+
+__inline__ __device__ int6 make_int6(int a, int b, int c, int d, int e, int f) {
+  int6 y;
+  y.a = a;
+  y.b = b;
+  y.c = c;
+  y.d = d;
+  y.e = e;
+  y.f = f;
+  return y;
+}
 
 #include <stdint.h>
 #include <stdio.h>
@@ -46,8 +73,15 @@ struct __align__(16) float8
 #define TILESIZEY 16
 
 /* unrolling parameters based on precision */
+#if 0
+#define N_BLOCKS 2
+#define N_UNROLL_FLOAT 6
+typedef float6 FVECTOR;
+#else
+#define N_BLOCKS 3
 #define N_UNROLL_FLOAT 4
 typedef float4 FVECTOR;
+#endif
 
 #define N_UNROLL_DOUBLE 2
 typedef double2 DVECTOR;
@@ -411,7 +445,7 @@ extern "C" {
  * @param m0 the starting data point in a compute tile
  * @param nRowsA the number of rows in A
  * @param nColsA the number of columns in A
- * @param isTranspose whether or not the supplied matrix is transpose or not.
+ * @param isStriped whether or not the supplied matrix is striped
  * @param A a pointer to the left hand side matrix or the Transpose (C ordering)
  * @param nColsC the number of rows in C
  * @param B a pointer to the right hand side matrix (C ordering)
@@ -427,7 +461,7 @@ extern "C" {
  */
 template<class TYPE>
 DllExport kmeansCudaErrorStatus ClosestCenters(const int m0, const int nRowsA, const int nColsA, 
-					       const bool isTranspose, const TYPE *A,
+					       const bool isStriped, const TYPE *A,
 					       const int nColsB, const TYPE *B, TYPE *Bpadded, 
 					       const TYPE * normRowsOfA_squared,
 					       const TYPE * normColsOfB_squared,

@@ -38,6 +38,40 @@ __device__ __inline__ void vectorMax(float4 x, float& xmax, int& index) {
 }
 
 
+
+template<>
+__device__ __inline__ void vectorMax(float6 x, float& xmax, int& index) {
+  int i1=2;
+  float xmax1=x.c;
+
+  int i2=4;
+  float xmax2=x.e;
+
+  xmax = x.a;
+  index = 0;
+  if (x.b>xmax) { 
+    xmax = x.b;
+    index = 1;
+  }
+  if (x.d>xmax1) { 
+    xmax1 = x.d;
+    i1 = 3;
+  }
+  if (x.f>xmax2) { 
+    xmax2 = x.f;
+    i2 = 5;
+  }
+  if (xmax2>xmax1) {
+    xmax1 = xmax2;
+    i1 = i2;
+  }
+  if (xmax1>xmax) { 
+    xmax = xmax1;
+    index = i1;
+  } 
+}
+
+
 template<class TYPE, class VTYPE>
 __device__ __inline__ void vectorMin(VTYPE x, TYPE& xmin, int& index) {
 }

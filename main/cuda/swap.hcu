@@ -2,41 +2,106 @@
 #define _SWAP_HCU_
 
 template<const int T1, const int T2>
+__device__ __inline__ void _dev_swap(double2 A[TILESIZE][T1],
+				     double2 B[TILESIZE][T2],
+				     double2 Creg2_2[TILESIZE][TILESIZE],
+				     double2 Creg2_3[TILESIZE][TILESIZE],
+				     double2 * Creg, int ty) {
+
+}
+
+template<const int T1, const int T2>
 __device__ __inline__ void _dev_swap(float4 A[TILESIZE][T1],
 				     float4 B[TILESIZE][T2],
-				     float4 * Creg1, float4 * Creg2, int ty) {
+				     float4 Creg2_2[TILESIZE][TILESIZE],
+				     float4 Creg2_3[TILESIZE][TILESIZE],
+				     float4 * Creg, int ty) {
 
+#if 0
   __syncthreads();
   if (ty==0) {
     A[threadIdx.y][threadIdx.x] = Creg2[0];
     B[threadIdx.y][threadIdx.x] = Creg2[1];
-    A[threadIdx.y+2][threadIdx.x] = Creg2[2];
-    B[threadIdx.y+2][threadIdx.x] = Creg2[3];
   }
   __syncthreads();
   if (ty==1) {
     Creg1[0] = A[threadIdx.y-2][threadIdx.x];
     Creg1[1] = B[threadIdx.y-2][threadIdx.x];
-    Creg1[2] = A[threadIdx.y][threadIdx.x];
-    Creg1[3] = B[threadIdx.y][threadIdx.x];
+    Creg1[2] = Creg2_2[threadIdx.y-2][threadIdx.x];
+    Creg1[3] = Creg2_3[threadIdx.y-2][threadIdx.x];
   }
+#endif
+}
+
+template<const int T1, const int T2>
+__device__ __inline__ void _dev_swap(float4 A[TILESIZE][T1],
+				     float4 B[TILESIZE][T2],
+				     float4 * Creg, int ty) {
+
+  __syncthreads();
+  if (ty==0) {
+    A[threadIdx.y][threadIdx.x] = Creg[4];
+    B[threadIdx.y][threadIdx.x] = Creg[5];
+    A[threadIdx.y+2][threadIdx.x] = Creg[6];
+    B[threadIdx.y+2][threadIdx.x] = Creg[7];
+  }
+  __syncthreads();
+  if (ty==1) {
+    Creg[0] = A[threadIdx.y-2][threadIdx.x];
+    Creg[1] = B[threadIdx.y-2][threadIdx.x];
+    Creg[2] = A[threadIdx.y][threadIdx.x];
+    Creg[3] = B[threadIdx.y][threadIdx.x];
+  }
+}
+
+
+template<const int T1, const int T2>
+__device__ __inline__ void _dev_swap(float6 A[TILESIZE][T1],
+				     float6 B[TILESIZE][T2],
+				     float6 * Creg, int ty) {
+
+  __syncthreads();
+  if (ty==0) {
+    A[threadIdx.y][threadIdx.x] = Creg[6];
+    B[threadIdx.y][threadIdx.x] = Creg[7];
+    A[threadIdx.y+2][threadIdx.x] = Creg[8];
+    B[threadIdx.y+2][threadIdx.x] = Creg[9];
+  }
+  __syncthreads();
+  if (ty==1) {
+    Creg[0] = A[threadIdx.y-2][threadIdx.x];
+    Creg[1] = B[threadIdx.y-2][threadIdx.x];
+    Creg[2] = A[threadIdx.y][threadIdx.x];
+    Creg[3] = B[threadIdx.y][threadIdx.x];
+  }
+  __syncthreads();
+  if (ty==0) {
+    A[threadIdx.y][threadIdx.x] = Creg[10];
+    B[threadIdx.y][threadIdx.x] = Creg[11];
+  }
+  __syncthreads();
+  if (ty==1) {
+    Creg[4] = A[threadIdx.y-2][threadIdx.x];
+    Creg[5] = B[threadIdx.y-2][threadIdx.x];
+  }
+  __syncthreads();
 }
 
 
 template<const int T1, const int T2>
 __device__ __inline__ void _dev_swap(double2 A[TILESIZE][T1],
 				     double2 B[TILESIZE][T2],
-				     double2 * Creg1, double2 * Creg2, int ty) {
+				     double2 * Creg, int ty) {
 
   __syncthreads();
   if (ty==0) {
-    A[threadIdx.y][threadIdx.x] = Creg2[0];
-    B[threadIdx.y][threadIdx.x] = Creg2[1];
+    A[threadIdx.y][threadIdx.x] = Creg[2];
+    B[threadIdx.y][threadIdx.x] = Creg[3];
   }
   __syncthreads();
   if (ty==1) {
-    Creg1[0] = A[threadIdx.y-2][threadIdx.x];
-    Creg1[1] = B[threadIdx.y-2][threadIdx.x];
+    Creg[0] = A[threadIdx.y-2][threadIdx.x];
+    Creg[1] = B[threadIdx.y-2][threadIdx.x];
   }
   __syncthreads();
 }

@@ -89,7 +89,7 @@ extern "C" {
    * @param numRetries the number of retries for computing the best centers
    * @param initAlgorithm the initialization algorithm
    * @param useCUBLAS whether or not to use the CUBLAS library for the matrix matrix multiply
-   * @param useTranspose whether or not to use the transposed matrx for the matrix matrix multiplys
+   * @param matrixFormat format to use for the computation. Normal, Transpose, Striped
    * @param result the buffer for storing the result
    *
    * @return a code detailing error status after completion.
@@ -98,7 +98,7 @@ extern "C" {
 							const int k, const float criterion,
 							const int maxIters, const int numRetries,
 							const int initAlgorithm, const int useCUBLAS,
-							const bool useTranspose, 
+							const int matrixFormat, 
 							float * result, const float miniBatchFraction=1.0);
 
   /**
@@ -114,7 +114,7 @@ extern "C" {
    * @param numRetries the number of retries for computing the best centers
    * @param initAlgorithm the initialization algorithm
    * @param useCUBLAS whether or not to use the CUBLAS library for the matrix matrix multiply
-   * @param useTranspose whether or not to use the transposed matrx for the matrix matrix multiply
+   * @param matrixFormat format to use for the computation. Normal or Striped
    * @param result the buffer for storing the result
    *
    * @return a code detailing error status after completion.
@@ -123,7 +123,7 @@ extern "C" {
 							const int k, const double criterion,
 							const int maxIters, const int numRetries,
 							const int initAlgorithm, const int useCUBLAS,
-							const bool useTranspose, 
+							const int matrixFormat, 
 							double * result, const double miniBatchFraction=1.0);
 
 #if defined(__cplusplus)
@@ -177,7 +177,7 @@ public:
   kmeans(const int m, const int n, const int k,
 	 const TYPE criterion, const int maxIters,
 	 const int numRetries, const int initAlgorithm,
-	 const int useCUBLAS, const bool useTranspose,
+	 const int useCUBLAS, const int matrixFormat,
 	 const TYPE miniBatchFraction=1.0);
 
   /**
@@ -355,7 +355,7 @@ private:
   /**
    * whether or not to use the transposed matrix for the matrix matrix multiply
    */
-  bool useTranspose;
+  bool useStriped;
 
   /**
    * whether or not to use the minibatch version of the algorithm
@@ -550,9 +550,12 @@ private:
   /**
    * A device array of size m x n containing the input data
    */
-  TYPE * dev_data_transpose;
+  TYPE * dev_data_aux;
 
-  bool hasMatrixTranspose;
+  /**
+   * whether or not the striped matrix has been created
+   */
+  bool hasStripedMatrix;
 
   /**
    * pointer to the matrix matrix multiply result
