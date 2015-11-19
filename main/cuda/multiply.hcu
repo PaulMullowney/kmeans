@@ -11,19 +11,18 @@
 
 
 template<class TYPE, class VTYPE, const int N_UNROLL, const int DELTA>
-__device__ void multiply(TYPE * __restrict__ A, TYPE * __restrict__ B, VTYPE* Creg,
+__device__ void multiply(TYPE * __restrict__ a, TYPE * __restrict__ b, VTYPE* Creg,
 			 VTYPE Ashmem[TILESIZE][TILESIZEY],
 			 VTYPE Bshmem[TILESIZE][TILESIZEX]) {
+
+
 
   /* prefetch the first tiles */
   //VTYPE Areg, Areg1, Areg2;
   //Areg = _dev_loadA<TYPE,VTYPE>(A,0,Areg1,Areg2);
 
-  VTYPE Areg = _dev_loadA<TYPE,VTYPE>(A);
-  VTYPE Breg = _dev_loadB<TYPE,VTYPE>(B);  
-
-  //int tidx = (threadIdx.x + (threadIdx.y&1) * blockDim.x);
-
+  VTYPE Areg = _dev_loadA<TYPE,VTYPE>(a);
+  VTYPE Breg = _dev_loadB<TYPE,VTYPE>(b);  
   int ty = (threadIdx.y>>1) % 2;
   
   /* loop over the interior tiles */
@@ -34,16 +33,15 @@ __device__ void multiply(TYPE * __restrict__ A, TYPE * __restrict__ B, VTYPE* Cr
     __syncthreads();
 
     /* load the next tiles */        
-    A+=TILESIZE;
-    if (n<dev_N || threadIdx.x<DELTA) Areg = _dev_loadA<TYPE,VTYPE>(A);    
-    //if (n<dev_N || tidx<2*DELTA) Areg = _dev_loadA<TYPE,VTYPE>(A,n,Areg1,Areg2); 
+    a+=TILESIZE;
+    b+=BSTRIDE;
 
-    B+=BSTRIDE;
-    if (n<dev_N || threadIdx.y<DELTA) Breg = _dev_loadB<TYPE,VTYPE>(B);  
+    if (n<dev_N || threadIdx.x<DELTA) Areg = _dev_loadA<TYPE,VTYPE>(a);    
+    //if (n<dev_N || tidx<2*DELTA) Areg = _dev_loadA<TYPE,VTYPE>(A,n,Areg1,Areg2); 
+    if (n<dev_N || threadIdx.y<DELTA) Breg = _dev_loadB<TYPE,VTYPE>(b);  
 
     /* compute the dot products */
-    _dev_dotproducts<TILESIZEY,TILESIZEX>(Ashmem,Bshmem,Creg,ty);
-
+    _dev_dotproducts<TILESIZEY,TILESIZEX>(Ashmem,Bshmem,Creg,ty); 
     __syncthreads();
   }
 

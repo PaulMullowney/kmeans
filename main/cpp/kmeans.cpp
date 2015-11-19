@@ -4,7 +4,7 @@ template<class TYPE>
 kmeans<TYPE>::kmeans(const int m, const int n, const int k,
 		     const TYPE criterion, const int maxIters,
 		     const int numRetries, const int initAlgorithm,
-		     const int useCUBLAS, const int matrixFormat,
+		     const int doFullSGEMM, const int matrixFormat,
 		     const TYPE miniBatchFraction) {
 
   /* allocate timers */
@@ -18,7 +18,6 @@ kmeans<TYPE>::kmeans(const int m, const int n, const int k,
   /* start the timer */
   float DT = 0.f;
   cudaEventRecord(this->start, 0);
-
 
   /* set the key meta data from the input */
   this->m = m;
@@ -40,13 +39,25 @@ kmeans<TYPE>::kmeans(const int m, const int n, const int k,
   /* set the convergence meta data */
   this->compactnessScore = 0.;
   this->relErr = 1.0;
-  
 
   this->handle = NULL;
+  this->useCUBLAS=false;
+  this->useMAGMA=false;
+
+  if (doFullSGEMM==1) this->useCUBLAS = true;
+  if (doFullSGEMM==2) this->useMAGMA = true;
+
   cout << "useCUBLAS=" << useCUBLAS << endl;
-  if (useCUBLAS) this->useCUBLAS = true;
-  else this->useCUBLAS = false;
-  
+  cout << "useMAGMA=" << useMAGMA << endl;
+
+#ifdef HAVE_MAGMA_H
+  if (useMAGMA)
+    magma_init();
+#else
+  if (useMAGMA)
+    cout << "ERROR : Attempting to use MAGMA but the code was not built with the MAGMA library" << endl;  
+#endif
+
   this->constantMemSet = false;
 
   this->entireDatasetIsOnDevice = false;
@@ -227,7 +238,7 @@ kmeans<TYPE>::~kmeans() {
       printf("%s(%i) : CUBLAS Runtime API error : %d.\n", __FILE__, __LINE__, int(stat));
   }
 
-  if (this->useCUBLAS) {
+  if (this->useCUBLAS || this->useMAGMA) {
     /* allocate the matrix matrix multiply result */
     if (this->dev_mmMult) {
       if (cudaSuccess != cudaFree(this->dev_mmMult))
@@ -328,7 +339,7 @@ kmeansErrorStatus kmeans<TYPE>::computeTiling() {
     /* variable memory */
     uint64_t varMemoryArray = 0;
     uint64_t varMemoryMMResult = 0;
-    if (useCUBLAS) {
+    if (this->useCUBLAS || this->useMAGMA) {
       varMemoryMMResult += (uint64_t) (mComputePadded * this->k * sizeof(TYPE));
     } else {
       varMemoryMMResult += (uint64_t) (mComputePadded * this->p * sizeof(TYPE));
@@ -485,7 +496,7 @@ kmeansErrorStatus kmeans<TYPE>::computeTiling() {
 	  
 	  /* update the memory requirements */
 	  varMemoryArray = (uint64_t) (this->m_padded * this->n * sizeof(TYPE));
-	  if (useCUBLAS) {
+	  if (this->useCUBLAS || this->useMAGMA) {
 	    varMemoryMMResult = (uint64_t) (this->m_padded * this->k * sizeof(TYPE));
 	  } else {
 	    varMemoryMMResult = (uint64_t) (this->m_padded * this->p * sizeof(TYPE));
@@ -656,7 +667,7 @@ kmeansErrorStatus kmeans<TYPE>::buildData(const TYPE * data) {
 
 
     /* allocate space for the result of the matrix matrix multiply */
-    if (this->useCUBLAS) {      
+    if (this->useCUBLAS || this->useMAGMA) {      
       /* matrix matrix multiply buffer */
       nBytes = mComputePadded * this->k * sizeof(TYPE);
       CUDA_API_SAFE_CALL(cudaMalloc((void**)&(this->dev_mmMult), nBytes), KMEANS_ERROR_BUILDDATA);
@@ -904,7 +915,7 @@ kmeansErrorStatus kmeans<TYPE>::closestCenters() {
   /* start the timer */
   START_TIMER(this->DT,this->start,KMEANS_ERROR_CLOSEST_CENTERS);
 
-  if (this->useCUBLAS) {
+  if (this->useCUBLAS || this->useMAGMA) {
     TYPE one = 1.0;
     TYPE zero = 0.0;
     if (sizeof(TYPE) == 4) {
@@ -916,12 +927,26 @@ kmeansErrorStatus kmeans<TYPE>::closestCenters() {
 	(const float *) this->dev_data_norm_squared_mb :
 	(const float *) this->dev_data_norm_squared;
 
-      CUBLAS_API_SAFE_CALL(cublasSgemm(this->handle, CUBLAS_OP_N, CUBLAS_OP_N,
-				       this->k, m_compute, this->n, (const float *)&one,
-				       (const float *) this->dev_centers, this->k,
-				       (const float *) srcData, this->n,
-				       (const float *)&zero, (float *) this->dev_mmMult, this->k),
-			   KMEANS_ERROR_CLOSEST_CENTERS);
+      if (this->useCUBLAS) {
+	CUBLAS_API_SAFE_CALL(cublasSgemm(this->handle, CUBLAS_OP_N, CUBLAS_OP_N,
+					 this->k, m_compute, this->n, (const float *)&one,
+					 (const float *) this->dev_centers, this->k,
+					 (const float *) srcData, this->n,
+					 (const float *)&zero, (float *) this->dev_mmMult, this->k),
+			     KMEANS_ERROR_CLOSEST_CENTERS);
+      } else {
+#ifdef HAVE_MAGMA_H
+	magma_trans_t  transA=MagmaNoTrans;
+	magma_trans_t  transB=MagmaNoTrans;
+	magmablas_sgemm(transA,transB,this->k, m_compute, this->n, 1.0,
+			(const float *) this->dev_centers, this->k,
+			(const float *) srcData, this->n,
+			0.0, (float *) this->dev_mmMult, this->k);
+#else
+	cout << "Error : Library was not built with MAGMA library. Exiting." << endl;
+	return KMEANS_ERROR_CLOSEST_CENTERS;	
+#endif
+      }
 
       err = rowTransformMinimumF(m_start, m_compute, this->k,
 				 (const float *)srcDataNormSquared,
@@ -939,12 +964,26 @@ kmeansErrorStatus kmeans<TYPE>::closestCenters() {
 	(const double *) this->dev_data_norm_squared_mb :
 	(const double *) this->dev_data_norm_squared;
 
-      CUBLAS_API_SAFE_CALL(cublasDgemm(this->handle, CUBLAS_OP_N, CUBLAS_OP_N,
-				       this->k, m_compute, this->n, (const double *)&one,
-				       (const double *) this->dev_centers, this->k,
-				       (const double *) srcData, this->n,
-				       (const double *)&zero, (double *) this->dev_mmMult, this->k),
-			   KMEANS_ERROR_CLOSEST_CENTERS);
+      if (this->useCUBLAS) {
+	CUBLAS_API_SAFE_CALL(cublasDgemm(this->handle, CUBLAS_OP_N, CUBLAS_OP_N,
+					 this->k, m_compute, this->n, (const double *)&one,
+					 (const double *) this->dev_centers, this->k,
+					 (const double *) srcData, this->n,
+					 (const double *)&zero, (double *) this->dev_mmMult, this->k),
+			     KMEANS_ERROR_CLOSEST_CENTERS);
+      } else {
+#ifdef HAVE_MAGMA_H
+	magma_trans_t  transA=MagmaNoTrans;
+	magma_trans_t  transB=MagmaNoTrans;
+	magmablas_dgemm(transA,transB,this->k, m_compute, this->n, 1.0,
+			(const double *) this->dev_centers, this->k,
+			(const double *) srcData, this->n,
+			0.0, (double *) this->dev_mmMult, this->k);
+#else
+	cout << "Error : Library was not built with MAGMA library. Exiting." << endl;
+	return KMEANS_ERROR_CLOSEST_CENTERS;	
+#endif
+      }
 
       err = rowTransformMinimumD(m_start, m_compute, this->k,
 				 (const double *)srcDataNormSquared,
@@ -1277,7 +1316,7 @@ kmeansErrorStatus kmeans<TYPE>::computeMiniBatch() {
 DllExport kmeansErrorStatus KMEANS_API computeKmeansF(const float * data, const int m, const int n,
 						      const int k, const float criterion,
 						      const int maxIters, const int numRetries,
-						      const int initAlgorithm, const int useCUBLAS,
+						      const int initAlgorithm, const int doFullSGEMM,
 						      const int matrixFormat, 
 						      float * result, const float miniBatchFraction) {
 
@@ -1285,7 +1324,7 @@ DllExport kmeansErrorStatus KMEANS_API computeKmeansF(const float * data, const 
 
   /* Allocate an instance of kmeans */
   kmeans<float> * KMEANS = new kmeans<float>(m, n, k, criterion, maxIters, numRetries,
-					     initAlgorithm, useCUBLAS, matrixFormat, 
+					     initAlgorithm, doFullSGEMM, matrixFormat, 
 					     miniBatchFraction);
 
   /* compute the tiling */
@@ -1325,7 +1364,7 @@ DllExport kmeansErrorStatus KMEANS_API computeKmeansF(const float * data, const 
 DllExport kmeansErrorStatus KMEANS_API computeKmeansD(const double * data, const int m, const int n,
 						      const int k, const double criterion,
 						      const int maxIters, const int numRetries,
-						      const int initAlgorithm, const int useCUBLAS,
+						      const int initAlgorithm, const int doFullSGEMM,
 						      const int matrixFormat, 
 						      double * result, const double miniBatchFraction) {
 
@@ -1333,7 +1372,7 @@ DllExport kmeansErrorStatus KMEANS_API computeKmeansD(const double * data, const
 
   /* Allocate an instance of kmeans */
   kmeans<double> * KMEANS = new kmeans<double>(m, n, k, criterion, maxIters, numRetries,
-					       initAlgorithm, useCUBLAS, matrixFormat, 
+					       initAlgorithm, doFullSGEMM, matrixFormat, 
 					       miniBatchFraction);
 
   /* compute the tiling */

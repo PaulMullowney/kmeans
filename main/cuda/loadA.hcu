@@ -30,8 +30,6 @@ __device__ __inline__ double4 _dev_loadA(const double * __restrict__ A) {
   return make_double4(A[0], A[ASTRIDE], A[2*ASTRIDE], A[3*ASTRIDE]);
 }
 
-
-
 template<class TYPE, class VTYPE>
 __device__ __inline__ VTYPE _dev_loadA(const TYPE * __restrict__ A, const int n,
 				      VTYPE& y, VTYPE& z) {

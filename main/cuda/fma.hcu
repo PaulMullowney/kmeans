@@ -8,7 +8,6 @@ __device__ __inline__ VTYPE fma(TYPE d, VTYPE x, VTYPE y) {
   return y;
 }
 
-
 template<>
 __device__ __inline__ float4 fma(float d, float4 x, float4 y) {
   y.x = fmaf(d,x.x,y.x);
@@ -17,7 +16,6 @@ __device__ __inline__ float4 fma(float d, float4 x, float4 y) {
   y.w = fmaf(d,x.w,y.w);
   return y;
 }
-
 
 template<>
 __device__ __inline__ float6 fma(float d, float6 x, float6 y) {

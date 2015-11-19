@@ -9,6 +9,7 @@
 #endif
 #endif
 
+#include "config.h"
 #include <vector>
 #include <algorithm>
 #include <iostream>
@@ -17,6 +18,10 @@
 #include <array>
 #include <string>
 #include <string.h>
+
+#ifdef HAVE_MAGMA_H
+#include <magma.h>
+#endif
 
 using namespace std;
 
@@ -88,7 +93,7 @@ extern "C" {
    * @param maxIters the maximum number of iterations
    * @param numRetries the number of retries for computing the best centers
    * @param initAlgorithm the initialization algorithm
-   * @param useCUBLAS whether or not to use the CUBLAS library for the matrix matrix multiply
+   * @param doFullSGEMM whether or not to do a full matrix matrix multiply (1==CUBLAS, 2==MAGMA)
    * @param matrixFormat format to use for the computation. Normal, Transpose, Striped
    * @param result the buffer for storing the result
    *
@@ -97,7 +102,7 @@ extern "C" {
   DllExport kmeansErrorStatus KMEANS_API computeKmeansF(const float * data, const int m, const int n,
 							const int k, const float criterion,
 							const int maxIters, const int numRetries,
-							const int initAlgorithm, const int useCUBLAS,
+							const int initAlgorithm, const int doFullSGEMM,
 							const int matrixFormat, 
 							float * result, const float miniBatchFraction=1.0);
 
@@ -113,7 +118,7 @@ extern "C" {
    * @param maxIters the maximum number of iterations
    * @param numRetries the number of retries for computing the best centers
    * @param initAlgorithm the initialization algorithm
-   * @param useCUBLAS whether or not to use the CUBLAS library for the matrix matrix multiply
+   * @param doFullSGEMM whether or not to do a full matrix matrix multiply (1==CUBLAS, 2==MAGMA)
    * @param matrixFormat format to use for the computation. Normal or Striped
    * @param result the buffer for storing the result
    *
@@ -122,7 +127,7 @@ extern "C" {
   DllExport kmeansErrorStatus KMEANS_API computeKmeansD(const double * data, const int m, const int n,
 							const int k, const double criterion,
 							const int maxIters, const int numRetries,
-							const int initAlgorithm, const int useCUBLAS,
+							const int initAlgorithm, const int doFullSGEMM,
 							const int matrixFormat, 
 							double * result, const double miniBatchFraction=1.0);
 
@@ -177,7 +182,7 @@ public:
   kmeans(const int m, const int n, const int k,
 	 const TYPE criterion, const int maxIters,
 	 const int numRetries, const int initAlgorithm,
-	 const int useCUBLAS, const int matrixFormat,
+	 const int doFullSGEMM, const int matrixFormat,
 	 const TYPE miniBatchFraction=1.0);
 
   /**
@@ -353,6 +358,11 @@ private:
   bool useCUBLAS;
 
   /**
+   * whether or not to use the MAGMA library for the matrix matrix multiply
+   */
+  bool useMAGMA;
+
+  /**
    * whether or not to use the transposed matrix for the matrix matrix multiply
    */
   bool useStriped;
@@ -414,7 +424,6 @@ private:
    * A device array of length m storing the norm of each row (squared) of the input data
    */
   TYPE * dev_data_norm_squared_mb;
-
 
   /**
    * handle to the cublas library

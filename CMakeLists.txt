@@ -16,14 +16,11 @@ INCLUDE (${CMAKE_ROOT}/Modules/CheckIncludeFile.cmake)
 SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -g -Wall -std=c++11")
 SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -g -Wall")
 
-
 #########
 # CUDA
 #########
 OPTION(WITH_CUDA "Build the library with CUDA" ON)
 IF (WITH_CUDA) 
-  #SET(CUDA_TOOLKIT_ROOT_DIR /cygdrive/c/CUDA_6.5/)
-  #SET(CUDA_SDK_ROOT_DIR /cygdrive/c/CUDA_6.5/)
   FIND_PACKAGE(CUDA REQUIRED)
   IF(CUDA_FOUND)
     CHECK_INCLUDE_FILE(${CUDA_INCLUDE_DIRS}/cuda_runtime.h HAVE_CUDA_H)
@@ -45,6 +42,18 @@ IF (WITH_CUDA)
     ELSE()
         SET(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS} ${CUDA_FLAGS} "-gencode arch=compute_20,code=sm_20 -gencode arch=compute_30,code=sm_30 -gencode arch=compute_35,code=sm_35 -gencode arch=compute_50,code=sm_50 -gencode arch=compute_52,code=sm_52")
     ENDIF()
+  ENDIF()
+ENDIF()
+
+###################################
+# MAGMA ... requires CUDA first
+###################################
+OPTION(WITH_MAGMA "Build the library with MAGMA" ON)
+IF (WITH_MAGMA) 
+  FIND_PACKAGE(MAGMA)
+  IF (MAGMA_FOUND)
+    SET(CMAKE_REQUIRED_INCLUDES ${CUDA_INCLUDE_DIRS})
+    CHECK_INCLUDE_FILE(${MAGMA_INCLUDE_DIRS}/magma.h HAVE_MAGMA_H)	
   ENDIF()
 ENDIF()
 

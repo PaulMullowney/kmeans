@@ -13,4 +13,6 @@
 /* Define to 1 if you have the <clapack.h> header file. */
 #cmakedefine HAVE_LAPACK_H @HAVE_LAPACK_H@
 
+/* Define to 1 if you have the <magma.h> header file. */
+#cmakedefine HAVE_MAGMA_H @HAVE_MAGMA_H@
 #endif
