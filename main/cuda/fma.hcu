@@ -29,6 +29,19 @@ __device__ __inline__ float6 fma(float d, float6 x, float6 y) {
 }
 
 template<>
+__device__ __inline__ float8 fma(float d, float8 x, float8 y) {
+  y.a = fmaf(d,x.a,y.a);
+  y.b = fmaf(d,x.b,y.b);
+  y.c = fmaf(d,x.c,y.c);
+  y.d = fmaf(d,x.d,y.d);
+  y.e = fmaf(d,x.e,y.e);
+  y.f = fmaf(d,x.f,y.f);
+  y.g = fmaf(d,x.g,y.g);
+  y.h = fmaf(d,x.h,y.h);
+  return y;
+}
+
+template<>
 __device__ __inline__ double4 fma(double d, double4 x, double4 y) {
   y.x = fma(d,x.x,y.x);
   y.y = fma(d,x.y,y.y);
@@ -59,6 +72,11 @@ __device__ __inline__ float4 scale(float d, float4 x) {
 template<>
 __device__ __inline__ float6 scale(float d, float6 x) {
   return make_float6(d*x.a, d*x.b, d*x.c, d*x.d, d*x.e, d*x.f);
+}
+
+template<>
+__device__ __inline__ float8 scale(float d, float8 x) {
+  return make_float8(d*x.a, d*x.b, d*x.c, d*x.d, d*x.e, d*x.f, d*x.g, d*x.h);
 }
 
 template<>

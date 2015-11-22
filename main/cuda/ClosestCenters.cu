@@ -39,7 +39,7 @@ __global__ void _dev_ClosestCentersStripedBegin(const TYPE * __restrict__ A, con
   multiplyStriped<TYPE,VTYPE,N_UNROLL,DELTA>(a, b, Creg, Ashmem, Bshmem);
 
   /* perform the partial reduction over each row in the shmem buffers */
-  _dev_reduction1<TILESIZEY,TILESIZEX>(r, c, Creg, Ashmem, Bshmem, C, Cindices);
+  _dev_reduction<TILESIZEY,TILESIZEX>(r, c, Creg, Ashmem, Bshmem, C, Cindices);
 }
 
 
@@ -79,7 +79,7 @@ __global__ void _dev_ClosestCentersBegin(const TYPE * __restrict__ A, const TYPE
   multiply<TYPE,VTYPE,N_UNROLL,DELTA>(a, b, Creg, Ashmem, Bshmem);
 
   /* perform the partial reduction over each row in the shmem buffers */
-  _dev_reduction1<TILESIZEY,TILESIZEX>(r, c, Creg, Ashmem, Bshmem, C, Cindices);
+  _dev_reduction<TILESIZEY,TILESIZEX>(r, c, Creg, Ashmem, Bshmem, C, Cindices);
 }
 
 
@@ -92,6 +92,13 @@ __host__ __device__ static __inline__ int nextPowerOfTwo(int v) {
   v |= v >> 16;
   v++;
   return v;
+}
+
+template<class TYPE>
+inline __device__ TYPE fmin(TYPE a, TYPE b, int ia, int ib, int& i)
+{
+  if (a<=b) {i=ia; return a; }
+  else {i=ib; return b; }
 }
 
 template<class TYPE, const int SHMEMSIZEX, const int SHMEMSIZEY>
@@ -126,10 +133,10 @@ __global__ void _dev_ClosestCentersEnd(const int m0, const int n, const int k, c
     int j;
     while (shift>=1) {
       if (threadIdx.x<shift) {
-	data[threadIdx.y][threadIdx.x] = fminf(data[threadIdx.y][threadIdx.x],
-					       data[threadIdx.y][threadIdx.x+shift],
-					       index[threadIdx.y][threadIdx.x],
-					       index[threadIdx.y][threadIdx.x+shift], j);
+	data[threadIdx.y][threadIdx.x] = fmin<TYPE>(data[threadIdx.y][threadIdx.x],
+						    data[threadIdx.y][threadIdx.x+shift],
+						    index[threadIdx.y][threadIdx.x],
+						    index[threadIdx.y][threadIdx.x+shift], j);
 	index[threadIdx.y][threadIdx.x] = j;
       }
       __syncthreads();
@@ -211,104 +218,72 @@ kmeansCudaErrorStatus ClosestCenters(const int m0, const int nRowsA, const int n
       CUDA_SAFE_CALL(cudaMemcpyToSymbol(ASTRIDE, &astride, sizeof(int)),ERROR_CLOSESTCENTERS);
       
       if (delta==1)
-	_dev_ClosestCentersStripedBegin<TYPE,VTYPE,1,N_UNROLL><<<grid,block>>>(A,devB,
-									normColsOfB_squared,C,Cindices);
+	_dev_ClosestCentersStripedBegin<TYPE,VTYPE,1,N_UNROLL><<<grid,block>>>(A,devB,normColsOfB_squared,C,Cindices);
       else if (delta==2)
-	_dev_ClosestCentersStripedBegin<TYPE,VTYPE,2,N_UNROLL><<<grid,block>>>(A,devB,
-									normColsOfB_squared,C,Cindices);
+	_dev_ClosestCentersStripedBegin<TYPE,VTYPE,2,N_UNROLL><<<grid,block>>>(A,devB,normColsOfB_squared,C,Cindices);
       else if (delta==3)
-	_dev_ClosestCentersStripedBegin<TYPE,VTYPE,3,N_UNROLL><<<grid,block>>>(A,devB,
-									normColsOfB_squared,C,Cindices);
+	_dev_ClosestCentersStripedBegin<TYPE,VTYPE,3,N_UNROLL><<<grid,block>>>(A,devB,normColsOfB_squared,C,Cindices);
       else if (delta==4)
-	_dev_ClosestCentersStripedBegin<TYPE,VTYPE,4,N_UNROLL><<<grid,block>>>(A,devB,
-									normColsOfB_squared,C,Cindices);
+	_dev_ClosestCentersStripedBegin<TYPE,VTYPE,4,N_UNROLL><<<grid,block>>>(A,devB,normColsOfB_squared,C,Cindices);
       else if (delta==5)
-	_dev_ClosestCentersStripedBegin<TYPE,VTYPE,5,N_UNROLL><<<grid,block>>>(A,devB,
-									normColsOfB_squared,C,Cindices);
+	_dev_ClosestCentersStripedBegin<TYPE,VTYPE,5,N_UNROLL><<<grid,block>>>(A,devB,normColsOfB_squared,C,Cindices);
       else if (delta==6)
-	_dev_ClosestCentersStripedBegin<TYPE,VTYPE,6,N_UNROLL><<<grid,block>>>(A,devB,
-									normColsOfB_squared,C,Cindices);
+	_dev_ClosestCentersStripedBegin<TYPE,VTYPE,6,N_UNROLL><<<grid,block>>>(A,devB,normColsOfB_squared,C,Cindices);
       else if (delta==7)
-	_dev_ClosestCentersStripedBegin<TYPE,VTYPE,7,N_UNROLL><<<grid,block>>>(A,devB,
-									normColsOfB_squared,C,Cindices);
+	_dev_ClosestCentersStripedBegin<TYPE,VTYPE,7,N_UNROLL><<<grid,block>>>(A,devB,normColsOfB_squared,C,Cindices);
       else if (delta==8)
-	_dev_ClosestCentersStripedBegin<TYPE,VTYPE,8,N_UNROLL><<<grid,block>>>(A,devB,
-									normColsOfB_squared,C,Cindices);
+	_dev_ClosestCentersStripedBegin<TYPE,VTYPE,8,N_UNROLL><<<grid,block>>>(A,devB,normColsOfB_squared,C,Cindices);
       else if (delta==9)
-	_dev_ClosestCentersStripedBegin<TYPE,VTYPE,9,N_UNROLL><<<grid,block>>>(A,devB,
-									normColsOfB_squared,C,Cindices);
+	_dev_ClosestCentersStripedBegin<TYPE,VTYPE,9,N_UNROLL><<<grid,block>>>(A,devB,normColsOfB_squared,C,Cindices);
       else if (delta==10)
-	_dev_ClosestCentersStripedBegin<TYPE,VTYPE,10,N_UNROLL><<<grid,block>>>(A,devB,
-									 normColsOfB_squared,C,Cindices);
+	_dev_ClosestCentersStripedBegin<TYPE,VTYPE,10,N_UNROLL><<<grid,block>>>(A,devB,normColsOfB_squared,C,Cindices);
       else if (delta==11)
-	_dev_ClosestCentersStripedBegin<TYPE,VTYPE,11,N_UNROLL><<<grid,block>>>(A,devB,
-									 normColsOfB_squared,C,Cindices);
+	_dev_ClosestCentersStripedBegin<TYPE,VTYPE,11,N_UNROLL><<<grid,block>>>(A,devB,normColsOfB_squared,C,Cindices);
       else if (delta==12)
-	_dev_ClosestCentersStripedBegin<TYPE,VTYPE,12,N_UNROLL><<<grid,block>>>(A,devB,
-									 normColsOfB_squared,C,Cindices);
+	_dev_ClosestCentersStripedBegin<TYPE,VTYPE,12,N_UNROLL><<<grid,block>>>(A,devB,normColsOfB_squared,C,Cindices);
       else if (delta==13)
-	_dev_ClosestCentersStripedBegin<TYPE,VTYPE,13,N_UNROLL><<<grid,block>>>(A,devB,
-									 normColsOfB_squared,C,Cindices);
+	_dev_ClosestCentersStripedBegin<TYPE,VTYPE,13,N_UNROLL><<<grid,block>>>(A,devB,normColsOfB_squared,C,Cindices);
       else if (delta==14)
-	_dev_ClosestCentersStripedBegin<TYPE,VTYPE,14,N_UNROLL><<<grid,block>>>(A,devB,
-									 normColsOfB_squared,C,Cindices);
+	_dev_ClosestCentersStripedBegin<TYPE,VTYPE,14,N_UNROLL><<<grid,block>>>(A,devB,normColsOfB_squared,C,Cindices);
       else if (delta==15)
-	_dev_ClosestCentersStripedBegin<TYPE,VTYPE,15,N_UNROLL><<<grid,block>>>(A,devB,
-									 normColsOfB_squared,C,Cindices);
+	_dev_ClosestCentersStripedBegin<TYPE,VTYPE,15,N_UNROLL><<<grid,block>>>(A,devB,normColsOfB_squared,C,Cindices);
       else if (delta==16)
-	_dev_ClosestCentersStripedBegin<TYPE,VTYPE,16,N_UNROLL><<<grid,block>>>(A,devB,
-									 normColsOfB_squared,C,Cindices);
+	_dev_ClosestCentersStripedBegin<TYPE,VTYPE,16,N_UNROLL><<<grid,block>>>(A,devB,normColsOfB_squared,C,Cindices);
 
     } else {
 
       if (delta==1)
-	_dev_ClosestCentersBegin<TYPE,VTYPE,1,N_UNROLL><<<grid,block>>>(A,devB,
-									normColsOfB_squared,C,Cindices);
+	_dev_ClosestCentersBegin<TYPE,VTYPE,1,N_UNROLL><<<grid,block>>>(A,devB,normColsOfB_squared,C,Cindices);
       else if (delta==2)
-	_dev_ClosestCentersBegin<TYPE,VTYPE,2,N_UNROLL><<<grid,block>>>(A,devB,
-									normColsOfB_squared,C,Cindices);
+	_dev_ClosestCentersBegin<TYPE,VTYPE,2,N_UNROLL><<<grid,block>>>(A,devB,normColsOfB_squared,C,Cindices);
       else if (delta==3)
-	_dev_ClosestCentersBegin<TYPE,VTYPE,3,N_UNROLL><<<grid,block>>>(A,devB,
-									normColsOfB_squared,C,Cindices);
+	_dev_ClosestCentersBegin<TYPE,VTYPE,3,N_UNROLL><<<grid,block>>>(A,devB,normColsOfB_squared,C,Cindices);
       else if (delta==4)
-	_dev_ClosestCentersBegin<TYPE,VTYPE,4,N_UNROLL><<<grid,block>>>(A,devB,
-									normColsOfB_squared,C,Cindices);
+	_dev_ClosestCentersBegin<TYPE,VTYPE,4,N_UNROLL><<<grid,block>>>(A,devB,normColsOfB_squared,C,Cindices);
       else if (delta==5)
-	_dev_ClosestCentersBegin<TYPE,VTYPE,5,N_UNROLL><<<grid,block>>>(A,devB,
-									normColsOfB_squared,C,Cindices);
+	_dev_ClosestCentersBegin<TYPE,VTYPE,5,N_UNROLL><<<grid,block>>>(A,devB,normColsOfB_squared,C,Cindices);
       else if (delta==6)
-	_dev_ClosestCentersBegin<TYPE,VTYPE,6,N_UNROLL><<<grid,block>>>(A,devB,
-									normColsOfB_squared,C,Cindices);
+	_dev_ClosestCentersBegin<TYPE,VTYPE,6,N_UNROLL><<<grid,block>>>(A,devB,normColsOfB_squared,C,Cindices);
       else if (delta==7)
-	_dev_ClosestCentersBegin<TYPE,VTYPE,7,N_UNROLL><<<grid,block>>>(A,devB,
-									normColsOfB_squared,C,Cindices);
+	_dev_ClosestCentersBegin<TYPE,VTYPE,7,N_UNROLL><<<grid,block>>>(A,devB,normColsOfB_squared,C,Cindices);
       else if (delta==8)
-	_dev_ClosestCentersBegin<TYPE,VTYPE,8,N_UNROLL><<<grid,block>>>(A,devB,
-									normColsOfB_squared,C,Cindices);
+	_dev_ClosestCentersBegin<TYPE,VTYPE,8,N_UNROLL><<<grid,block>>>(A,devB,normColsOfB_squared,C,Cindices);
       else if (delta==9)
-	_dev_ClosestCentersBegin<TYPE,VTYPE,9,N_UNROLL><<<grid,block>>>(A,devB,
-									normColsOfB_squared,C,Cindices);
+	_dev_ClosestCentersBegin<TYPE,VTYPE,9,N_UNROLL><<<grid,block>>>(A,devB,normColsOfB_squared,C,Cindices);
       else if (delta==10)
-	_dev_ClosestCentersBegin<TYPE,VTYPE,10,N_UNROLL><<<grid,block>>>(A,devB,
-									 normColsOfB_squared,C,Cindices);
+	_dev_ClosestCentersBegin<TYPE,VTYPE,10,N_UNROLL><<<grid,block>>>(A,devB,normColsOfB_squared,C,Cindices);
       else if (delta==11)
-	_dev_ClosestCentersBegin<TYPE,VTYPE,11,N_UNROLL><<<grid,block>>>(A,devB,
-									 normColsOfB_squared,C,Cindices);
+	_dev_ClosestCentersBegin<TYPE,VTYPE,11,N_UNROLL><<<grid,block>>>(A,devB,normColsOfB_squared,C,Cindices);
       else if (delta==12)
-	_dev_ClosestCentersBegin<TYPE,VTYPE,12,N_UNROLL><<<grid,block>>>(A,devB,
-									 normColsOfB_squared,C,Cindices);
+	_dev_ClosestCentersBegin<TYPE,VTYPE,12,N_UNROLL><<<grid,block>>>(A,devB,normColsOfB_squared,C,Cindices);
       else if (delta==13)
-	_dev_ClosestCentersBegin<TYPE,VTYPE,13,N_UNROLL><<<grid,block>>>(A,devB,
-									 normColsOfB_squared,C,Cindices);
+	_dev_ClosestCentersBegin<TYPE,VTYPE,13,N_UNROLL><<<grid,block>>>(A,devB,normColsOfB_squared,C,Cindices);
       else if (delta==14)
-	_dev_ClosestCentersBegin<TYPE,VTYPE,14,N_UNROLL><<<grid,block>>>(A,devB,
-									 normColsOfB_squared,C,Cindices);
+	_dev_ClosestCentersBegin<TYPE,VTYPE,14,N_UNROLL><<<grid,block>>>(A,devB,normColsOfB_squared,C,Cindices);
       else if (delta==15)
-	_dev_ClosestCentersBegin<TYPE,VTYPE,15,N_UNROLL><<<grid,block>>>(A,devB,
-									 normColsOfB_squared,C,Cindices);
+	_dev_ClosestCentersBegin<TYPE,VTYPE,15,N_UNROLL><<<grid,block>>>(A,devB,normColsOfB_squared,C,Cindices);
       else if (delta==16)
-	_dev_ClosestCentersBegin<TYPE,VTYPE,16,N_UNROLL><<<grid,block>>>(A,devB,
-									 normColsOfB_squared,C,Cindices);
+	_dev_ClosestCentersBegin<TYPE,VTYPE,16,N_UNROLL><<<grid,block>>>(A,devB,normColsOfB_squared,C,Cindices);
     }
 
     CUDA_SAFE_CALL(cudaGetLastError(),ERROR_CLOSESTCENTERS);
@@ -320,7 +295,6 @@ kmeansCudaErrorStatus ClosestCenters(const int m0, const int nRowsA, const int n
 
     //CUDA_SAFE_CALL(cudaFuncSetCacheConfig(_dev_ClosestCentersEnd<TYPE,nThreads>,
     //					  cudaFuncCachePreferShared),ERROR_CLOSESTCENTERS);
-    //printf("nColsC=%d, shift=%d\n",nColsC,shift);
     if (shift==2)
       _dev_ClosestCentersEnd<TYPE,2,64><<<grid,block>>>(m0,nRowsA,nColsC,shift,C,Cindices,CindicesFinal);
     else if (shift==4)

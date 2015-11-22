@@ -11,11 +11,6 @@ __device__ __inline__ float2 _dev_loadA(const float * __restrict__ A) {
 }
 
 template<>
-__device__ __inline__ double2 _dev_loadA(const double * __restrict__ A) {
-  return make_double2(A[0], A[ASTRIDE]); 
-}
-
-template<>
 __device__ __inline__ float4 _dev_loadA(const float * __restrict__ A) {
   return make_float4(A[0], A[ASTRIDE], A[2*ASTRIDE], A[3*ASTRIDE]);
 }
@@ -26,144 +21,18 @@ __device__ __inline__ float6 _dev_loadA(const float * __restrict__ A) {
 }
 
 template<>
+__device__ __inline__ float8 _dev_loadA(const float * __restrict__ A) {
+  return make_float8(A[0], A[ASTRIDE], A[2*ASTRIDE], A[3*ASTRIDE], A[4*ASTRIDE], A[5*ASTRIDE], A[6*ASTRIDE], A[7*ASTRIDE]);
+}
+
+template<>
+__device__ __inline__ double2 _dev_loadA(const double * __restrict__ A) {
+  return make_double2(A[0], A[ASTRIDE]); 
+}
+
+template<>
 __device__ __inline__ double4 _dev_loadA(const double * __restrict__ A) {
   return make_double4(A[0], A[ASTRIDE], A[2*ASTRIDE], A[3*ASTRIDE]);
-}
-
-template<class TYPE, class VTYPE>
-__device__ __inline__ VTYPE _dev_loadA(const TYPE * __restrict__ A, const int n,
-				      VTYPE& y, VTYPE& z) {
-  return y;
-}
-
-template<>
-__device__ __inline__ float2 _dev_loadA(const float * __restrict__ A, const int n,
-					float2& y, float2& z) {
-  return make_float2(0,0);
-}
-
-template<>
-__device__ __inline__ double2 _dev_loadA(const double * __restrict__ A, const int n,
-					 double2& y, double2& z) {
-  return make_double2(0,0);
-}
-
-template<>
-__device__ __inline__ float4 _dev_loadA(const float * __restrict__ A, const int n, 
-					float4& y, float4& z) {
-  
-  if ((n&1)==0) {
-    float4 u, v;
-    y = make_float4(A[0], A[ASTRIDE], A[2*ASTRIDE], A[3*ASTRIDE]);
-    u.x = __shfl_down(y.x, TILESIZE);
-    u.y = __shfl_down(y.y, TILESIZE);
-    u.z = __shfl_down(y.z, TILESIZE);
-    u.w = __shfl_down(y.w, TILESIZE);  
-
-    z = make_float4(A[4*ASTRIDE], A[5*ASTRIDE], A[6*ASTRIDE], A[7*ASTRIDE]);
-    v.x = __shfl_up(z.x, TILESIZE);
-    v.y = __shfl_up(z.y, TILESIZE);
-    v.z = __shfl_up(z.z, TILESIZE);
-    v.w = __shfl_up(z.w, TILESIZE);  
-
-    if ((threadIdx.y&1)==0) {
-      z.x = u.x;
-      z.y = u.y;
-      z.z = u.z;
-      z.w = u.w;
-    } else {
-      y.x = v.x;
-      y.y = v.y;
-      y.z = v.z;
-      y.w = v.w;
-    }
-    return y;
-  } else
-    return z;
-}
-
-
-#if 0
-template<>
-__device__ __inline__ float6 _dev_loadA(const float * __restrict__ A,
-					const int n, float6& y, float6& z) {
-
-  float6 u,v;
-  if ((n&1)==0) {
-    y = make_float6(A[0], A[ASTRIDE], A[2*ASTRIDE], A[3*ASTRIDE], A[4*ASTRIDE], A[5*ASTRIDE]);
-    z = make_float6(A[6*ASTRIDE], A[7*ASTRIDE], A[8*ASTRIDE], A[9*ASTRIDE], A[10*ASTRIDE], A[11*ASTRIDE]);
-  }
-
-  u.a = __shfl_down(y.a, TILESIZE);
-  u.b = __shfl_down(y.b, TILESIZE);
-  u.c = __shfl_down(y.c, TILESIZE);
-  u.d = __shfl_down(y.d, TILESIZE);  
-  u.e = __shfl_down(y.e, TILESIZE);  
-  u.f = __shfl_down(y.f, TILESIZE);  
-  
-  v.a = __shfl_up(z.a, TILESIZE);
-  v.b = __shfl_up(z.b, TILESIZE);
-  v.c = __shfl_up(z.c, TILESIZE);
-  v.d = __shfl_up(z.d, TILESIZE);  
-  v.e = __shfl_up(z.e, TILESIZE);  
-  v.f = __shfl_up(z.f, TILESIZE);  
-  
-  if ((n&1)==0) {
-    if ((threadIdx.y&1)==0)
-      return y;
-    else
-      return v;    
-  } else {
-
-    if ((threadIdx.y&1)==0)
-      return u;
-    else
-      return z;    
-  }
-}
-#endif
-
-
-
-
-
-template<class TYPE, const int N_UNROLL>
-__device__ __inline__ void _dev_loadA(const TYPE * __restrict__ A, TYPE (&Areg)[N_UNROLL]) {
-}
-
-template<>
-__device__ __inline__ void _dev_loadA(const float * __restrict__ A, float (&Areg)[2]) {
-  Areg[0] = A[0];
-  Areg[1] = A[ASTRIDE];
-}
-
-template<>
-__device__ __inline__ void _dev_loadA(const double * __restrict__ A, double (&Areg)[2]) {
-  Areg[0] = A[0];
-  Areg[1] = A[ASTRIDE];
-}
-
-template<>
-__device__ __inline__ void _dev_loadA(const float * __restrict__ A, float (&Areg)[4]) {
-#if 0
-  Areg[0] = __ldg(A);
-  Areg[1] = __ldg(A+ASTRIDE);
-  Areg[2] = __ldg(A+2*ASTRIDE);
-  Areg[3] = __ldg(A+3*ASTRIDE);
-#else
-  Areg[0] = A[0];
-  Areg[1] = A[ASTRIDE];
-  Areg[2] = A[2*ASTRIDE];
-  Areg[3] = A[3*ASTRIDE];
-#endif
-}
-
-template<>
-__device__ __inline__ void _dev_loadA(const double * __restrict__ A, double (&Areg)[4]) {
-  Areg[0] = A[0];
-  Areg[1] = A[ASTRIDE];
-  Areg[2] = A[2*ASTRIDE];
-  Areg[3] = A[3*ASTRIDE];
 }
 
 #endif /* !defined(_LOAD_A_HCU_) */

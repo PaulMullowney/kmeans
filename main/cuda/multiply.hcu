@@ -18,9 +18,6 @@ __device__ void multiply(TYPE * __restrict__ a, TYPE * __restrict__ b, VTYPE* Cr
 
 
   /* prefetch the first tiles */
-  //VTYPE Areg, Areg1, Areg2;
-  //Areg = _dev_loadA<TYPE,VTYPE>(A,0,Areg1,Areg2);
-
   VTYPE Areg = _dev_loadA<TYPE,VTYPE>(a);
   VTYPE Breg = _dev_loadB<TYPE,VTYPE>(b);  
   int ty = (threadIdx.y>>1) % 2;
@@ -37,7 +34,6 @@ __device__ void multiply(TYPE * __restrict__ a, TYPE * __restrict__ b, VTYPE* Cr
     b+=BSTRIDE;
 
     if (n<dev_N || threadIdx.x<DELTA) Areg = _dev_loadA<TYPE,VTYPE>(a);    
-    //if (n<dev_N || tidx<2*DELTA) Areg = _dev_loadA<TYPE,VTYPE>(A,n,Areg1,Areg2); 
     if (n<dev_N || threadIdx.y<DELTA) Breg = _dev_loadB<TYPE,VTYPE>(b);  
 
     /* compute the dot products */
@@ -102,86 +98,6 @@ __device__ void multiplyStriped(TYPE * __restrict__ A, TYPE * __restrict__ B, VT
     _dev_swap<TILESIZEY,TILESIZEX>(Ashmem,Bshmem,Creg,ty);
 }
 
-
-
-template<class TYPE, const int N_UNROLL, const int DELTA>
-__device__ void multiplyNew(TYPE * __restrict__ A, TYPE * __restrict__ B, TYPE* Creg,
-			    TYPE Ashmem[N_UNROLL*TILESIZEY][TILESIZEX],
-			    TYPE Bshmem[N_UNROLL*TILESIZEY][TILESIZEX]) {
-
-  /* prefetch the first tiles */
-  TYPE Areg[N_UNROLL];
-  TYPE Breg[N_UNROLL];
-  _dev_loadA<TYPE,N_UNROLL>(A,Areg);
-  _dev_loadB<TYPE,N_UNROLL>(B,Breg);
-
-  /* loop over the interior tiles */
-  for (int n=1; n<=dev_N; ++n) {
-    /* transfer A registers to shmem */
-    for (int i=0; i<N_UNROLL; ++i) {
-      //threadIdx.y+i*TILESIZEY
-      //Ashmem[threadIdx.y*N_UNROLL+i][threadIdx.x] = Areg[i];
-      //Bshmem[threadIdx.x*N_UNROLL+i][threadIdx.y] = Breg[i];
-
-      Ashmem[threadIdx.y+i*TILESIZE][threadIdx.x] = Areg[i];
-      Bshmem[threadIdx.x+i*TILESIZE][threadIdx.y] = Breg[i];
-    }
-    __syncthreads();
-    
-    /* load the next A tiles */
-    A+=TILESIZE;
-    B+=TILESIZE*dev_nColsB;
-    if (n<dev_N || threadIdx.x<DELTA) _dev_loadA<TYPE,N_UNROLL>(A,Areg);
-    if (n<dev_N || threadIdx.y<DELTA) _dev_loadB<TYPE,N_UNROLL>(B,Breg);  
-
-    /* compute the dot products */
-    TYPE t1, t2;
-#pragma unroll
-    for (int m=0; m<N_UNROLL; ++m) {
-#pragma unroll
-      for (int p=0; p<N_UNROLL; ++p) {
-	int i = m*N_UNROLL + p;
-#pragma unroll
-	for (int k=0; k<TILESIZE; ++k) {
-	  //t1 = Ashmem[threadIdx.y*N_UNROLL + m][k];
-	  //t2 = Bshmem[threadIdx.x*N_UNROLL + p][k];
-	  t1 = Ashmem[threadIdx.y + m*TILESIZE][k];
-	  t2 = Bshmem[threadIdx.x + p*TILESIZE][k];
-	  Creg[i] = fma(t1,t2,Creg[i]);
-	}
-      }
-    }
-    __syncthreads();
-  }
-
-  /* transfer registers to shmem */
-  for (int i=0; i<N_UNROLL; ++i) {
-    //threadIdx.y+i*TILESIZEY
-    Ashmem[threadIdx.y+i*TILESIZE][threadIdx.x] = Areg[i];
-    Bshmem[threadIdx.x+i*TILESIZE][threadIdx.y] = Breg[i];
-    //Ashmem[threadIdx.y*N_UNROLL+i][threadIdx.x] = Areg[i];
-    //Bshmem[threadIdx.x*N_UNROLL+i][threadIdx.y] = Breg[i];
-  }
-  __syncthreads();
-  
-  /* compute the dot products */
-  TYPE t1, t2;
-#pragma unroll
-  for (int m=0; m<N_UNROLL; ++m) {
-#pragma unroll
-    for (int n=0; n<N_UNROLL; ++n) {
-      int i = m*N_UNROLL + n;
-#pragma unroll
-      for (int k=0; k<DELTA; ++k) {
-	//t1 = Ashmem[threadIdx.y*N_UNROLL + m][k];
-	//t2 = Bshmem[threadIdx.x*N_UNROLL + n][k];
-	t1 = Ashmem[threadIdx.y + m*TILESIZE][k];
-	t2 = Bshmem[threadIdx.x + n*TILESIZE][k];
-	Creg[i] = fma(t1,t2,Creg[i]);
-      }
-    }
-  }
-}
 
 
 template<class TYPE, class VTYPE, const int NREGS>

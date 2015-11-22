@@ -60,6 +60,45 @@ __inline__ __device__ int6 make_int6(int a, int b, int c, int d, int e, int f) {
   return y;
 }
 
+
+struct __align__(16) float8
+{
+  float a, b, c, d, e, f, g, h;
+};
+
+__inline__ __device__ float8 make_float8(float a, float b, float c, float d, 
+					 float e, float f, float g, float h) {
+  float8 y;
+  y.a = a;
+  y.b = b;
+  y.c = c;
+  y.d = d;
+  y.e = e;
+  y.f = f;
+  y.g = g;
+  y.h = h;
+  return y;
+}
+
+struct __align__(16) int8
+{
+  int a, b, c, d, e, f, g, h;
+};
+
+__inline__ __device__ int8 make_int8(int a, int b, int c, int d,
+				     int e, int f, int g, int h) {
+  int8 y;
+  y.a = a;
+  y.b = b;
+  y.c = c;
+  y.d = d;
+  y.e = e;
+  y.f = f;
+  y.g = g;
+  y.h = h;
+  return y;
+}
+
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -77,6 +116,8 @@ __inline__ __device__ int6 make_int6(int a, int b, int c, int d, int e, int f) {
 #define N_BLOCKS 2
 #define N_UNROLL_FLOAT 6
 typedef float6 FVECTOR;
+//#define N_UNROLL_FLOAT 8
+//typedef float8 FVECTOR;
 #else
 #define N_BLOCKS 3
 #define N_UNROLL_FLOAT 4

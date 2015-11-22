@@ -56,6 +56,13 @@ __device__ __inline__ void _dev_swap(float4 A[TILESIZE][T1],
 
 
 template<const int T1, const int T2>
+__device__ __inline__ void _dev_swap(float8 A[TILESIZE][T1],
+				     float8 B[TILESIZE][T2],
+				     float8 * Creg, int ty) {
+
+}
+
+template<const int T1, const int T2>
 __device__ __inline__ void _dev_swap(float6 A[TILESIZE][T1],
 				     float6 B[TILESIZE][T2],
 				     float6 * Creg, int ty) {

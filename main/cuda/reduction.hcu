@@ -4,84 +4,39 @@
 #include "fma.hcu"
 #include "vectorMin.hcu"
 
-inline __device__ float fminf(float a, float b, float ia, float ib, float& i)
-{
-  if (a<=b) {i=ia; return a; }
-  else {i=ib; return b; }
+template<const int T1, const int T2>
+__device__ __inline__ void _dev_reduction(const int r, const int c, double2 * Creg,
+					  double2 A[TILESIZEY][T1],
+					  double2 B[TILESIZEY][T2],
+					  double * __restrict__ C,
+					  int * __restrict__ Cindices) {
 }
 
-inline __device__ float fminf(float a, float b, int ia, int ib, int& i)
-{
-  if (a<=b) {i=ia; return a; }
-  else {i=ib; return b; }
-}
-
-__inline__ __device__ float2 fminf(float2 a, float2 b, float2 ia, float2 ib, float2& i)
-{
-  return make_float2(fminf(a.x,b.x,ia.x,ib.x,i.x), 
-		     fminf(a.y,b.y,ia.y,ib.y,i.y));
-}
-
-__inline__ __device__ float4 fminf(float4 a, float4 b, float4 ia, float4 ib, float4& i)
-{
-  return make_float4(fminf(a.x,b.x,ia.x,ib.x,i.x), 
-		     fminf(a.y,b.y,ia.y,ib.y,i.y), 
-		     fminf(a.z,b.z,ia.z,ib.z,i.z), 
-		     fminf(a.w,b.w,ia.w,ib.w,i.w));
-}
-
-
-inline __device__ double fmind(double a, double b, double ia, double ib, double& i)
-{
-  if (a<=b) {i=ia; return a; }
-  else {i=ib; return b; }
-}
-
-inline __device__ double fmind(double a, double b, int ia, int ib, int& i)
-{
-  if (a<=b) {i=ia; return a; }
-  else {i=ib; return b; }
-}
-
-__inline__ __device__ double2 fmind(double2 a, double2 b, double2 ia, double2 ib, double2& i)
-{
-  return make_double2(fmind(a.x,b.x,ia.x,ib.x,i.x), 
-		      fmind(a.y,b.y,ia.y,ib.y,i.y));
-}
-
-__inline__ __device__ double4 fmind(double4 a, double4 b, double4 ia, double4 ib, double4& i)
-{
-  return make_double4(fmind(a.x,b.x,ia.x,ib.x,i.x), 
-		      fmind(a.y,b.y,ia.y,ib.y,i.y), 
-		      fmind(a.z,b.z,ia.z,ib.z,i.z), 
-		      fmind(a.w,b.w,ia.w,ib.w,i.w));
+template<const int T1, const int T2>
+__device__ __inline__ void _dev_reduction(const int r, const int c, double4 * Creg,
+					  double4 A[TILESIZEY][T1],
+					  double4 B[TILESIZEY][T2],
+					  double * __restrict__ C,
+					  int * __restrict__ Cindices) {
+  
 }
 
 
 template<const int T1, const int T2>
-__device__ __inline__ void _dev_reduction1(const int r, const int c, float2 * Creg,
-					   float2 A[TILESIZEY][T1],
-					   float2 B[TILESIZEY][T2],
-					   float * __restrict__ C,
-					   int * __restrict__ Cindices) {
+__device__ __inline__ void _dev_reduction(const int r, const int c, float2 * Creg,
+					  float2 A[TILESIZEY][T1],
+					  float2 B[TILESIZEY][T2],
+					  float * __restrict__ C,
+					  int * __restrict__ Cindices) {
 
 }
 
 template<const int T1, const int T2>
-__device__ __inline__ void _dev_reduction1(const int r, const int c, double2 * Creg,
-					   double2 A[TILESIZEY][T1],
-					   double2 B[TILESIZEY][T2],
-					   double * __restrict__ C,
-					   int * __restrict__ Cindices) {
-}
-
-
-template<const int T1, const int T2>
-__device__ __inline__ void _dev_reduction1(const int r, const int c, float4 * Creg,
-					   float4 A[TILESIZEY][T1],
-					   float4 B[TILESIZEY][T2],
-					   float * __restrict__ C,
-					   int * __restrict__ Cindices) {
+__device__ __inline__ void _dev_reduction(const int r, const int c, float4 * Creg,
+					  float4 A[TILESIZEY][T1],
+					  float4 B[TILESIZEY][T2],
+					  float * __restrict__ C,
+					  int * __restrict__ Cindices) {
 
   int4 i;
   int4 j;
@@ -145,11 +100,11 @@ __device__ __inline__ void _dev_reduction1(const int r, const int c, float4 * Cr
 }
 
 template<const int T1, const int T2>
-__device__ __inline__ void _dev_reduction1(const int r, const int c, float6 * Creg,
-					   float6 A[TILESIZEY][T1],
-					   float6 B[TILESIZEY][T2],
-					   float * __restrict__ C,
-					   int * __restrict__ Cindices) {
+__device__ __inline__ void _dev_reduction(const int r, const int c, float6 * Creg,
+					  float6 A[TILESIZEY][T1],
+					  float6 B[TILESIZEY][T2],
+					  float * __restrict__ C,
+					  int * __restrict__ Cindices) {
 
   int6 i;
   int6 j;
@@ -231,325 +186,109 @@ __device__ __inline__ void _dev_reduction1(const int r, const int c, float6 * Cr
 }
 
 
-template<const int T1, const int T2>
-__device__ __inline__ void _dev_reduction1(const int r, const int c, double4 * Creg,
-					   double4 A[TILESIZEY][T1],
-					   double4 B[TILESIZEY][T2],
-					   double * __restrict__ C,
-					   int * __restrict__ Cindices) {
-  
-}
-
-
 
 template<const int T1, const int T2>
-__device__ __inline__ void _dev_reduction(const int c, float2 * Creg,
-					  float2 L2normB[TILESIZE],
-					  float2 A[TILESIZEY][T1],
-					  float2 B[TILESIZEY][T2]) {
+__device__ __inline__ void _dev_reduction(const int r, const int c, float8 * Creg,
+					  float8 A[TILESIZEY][T1],
+					  float8 B[TILESIZEY][T2],
+					  float * __restrict__ C,
+					  int * __restrict__ Cindices) {
 
-  int tidx = threadIdx.x;
-  int tidy = threadIdx.y;
+  int8 i;
+  int8 j;
+  float8 s, t;
 
-  int2 i;
-  float2 s;
-  float2 t = L2normB[tidx];
+  vectorMax<float,float8>(Creg[0],s.a,i.a);
+  vectorMax<float,float8>(Creg[1],s.b,i.b);
+  vectorMax<float,float8>(Creg[2],s.c,i.c);
+  vectorMax<float,float8>(Creg[3],s.d,i.d);
+  vectorMax<float,float8>(Creg[4],s.e,i.e);
+  vectorMax<float,float8>(Creg[5],s.f,i.f);
+  vectorMax<float,float8>(Creg[6],s.g,i.g);
+  vectorMax<float,float8>(Creg[7],s.h,i.h);
 
-  Creg[0] = fma<float,float2>(-2.0f,Creg[0],t);
-  vectorMin<float,float2>(Creg[0],s.x,i.x);
+  i.a+=c;
+  i.b+=c;
+  i.c+=c;
+  i.d+=c;
+  i.e+=c;
+  i.f+=c;
+  i.g+=c;
+  i.h+=c;
   
-  Creg[1] = fma<float,float2>(-2.0f,Creg[1],t);
-  vectorMin<float,float2>(Creg[1],s.y,i.y);
+  for (int n=1; n<TILESIZE; n<<=1) {
+    t.a = __shfl_down(s.a, n, TILESIZE);
+    j.a = __shfl_down(i.a, n, TILESIZE);
 
-  i.x+=c;
-  i.y+=c;
+    t.b = __shfl_down(s.b, n, TILESIZE);
+    j.b = __shfl_down(i.b, n, TILESIZE);
 
-#if __CUDA_ARCH__ < 300
-  A[tidy][tidx] = s;
-  B[tidy][tidx] = make_float2(i.x,i.y);  
-    
-  /* perform the partial reduction over each row in the  buffers */
-  if (tidx%2==0) {
-    A[tidy][tidx] = fminf(A[tidy][tidx],A[tidy][tidx+1],
-			  B[tidy][tidx],B[tidy][tidx+1],s);
-    B[tidy][tidx] = s;
-  }
-  if (tidx%4==0) {
-    A[tidy][tidx] = fminf(A[tidy][tidx],A[tidy][tidx+2],
-			  B[tidy][tidx],B[tidy][tidx+2],s);
-    B[tidy][tidx] = s;
-  }
-  if (tidx%8==0) {
-    A[tidy][tidx] = fminf(A[tidy][tidx],A[tidy][tidx+4],
-			  B[tidy][tidx],B[tidy][tidx+4],s);
-    B[tidy][tidx] = s;
-  }
-  if (tidx==0) {
-    A[tidy][tidx] = fminf(A[tidy][tidx],A[tidy][tidx+8],
-			  B[tidy][tidx],B[tidy][tidx+8],s);
-    B[tidy][tidx] = s;
-  }
-#else
-  int2 j;
-  for (int k=1; k<TILESIZE; k<<=1) {
+    t.c = __shfl_down(s.c, n, TILESIZE);
+    j.c = __shfl_down(i.c, n, TILESIZE);
 
-    t.x = __shfl_down(s.x, k, TILESIZE);
-    j.x = __shfl_down(i.x, k, TILESIZE);
+    t.d = __shfl_down(s.d, n, TILESIZE);
+    j.d = __shfl_down(i.d, n, TILESIZE);
 
-    t.y = __shfl_down(s.y, k, TILESIZE);
-    j.y = __shfl_down(i.y, k, TILESIZE);
+    t.e = __shfl_down(s.e, n, TILESIZE);
+    j.e = __shfl_down(i.e, n, TILESIZE);
 
-    if ((tidx%(k*2))==0) {
-      if (s.x>t.x) { i.x = j.x; s.x=t.x; }
-      if (s.y>t.y) { i.y = j.y; s.y=t.y; }
+    t.f = __shfl_down(s.f, n, TILESIZE);
+    j.f = __shfl_down(i.f, n, TILESIZE);
+
+    t.g = __shfl_down(s.g, n, TILESIZE);
+    j.g = __shfl_down(i.g, n, TILESIZE);
+
+    t.h = __shfl_down(s.h, n, TILESIZE);
+    j.h = __shfl_down(i.h, n, TILESIZE);
+
+    if ((threadIdx.x%(n*2))==0) {
+      if (s.a<t.a) { i.a = j.a; s.a=t.a; }
+      if (s.b<t.b) { i.b = j.b; s.b=t.b; }
+      if (s.c<t.c) { i.c = j.c; s.c=t.c; }
+      if (s.d<t.d) { i.d = j.d; s.d=t.d; }
+      if (s.e<t.e) { i.e = j.e; s.e=t.e; }
+      if (s.f<t.f) { i.f = j.f; s.f=t.f; }
+      if (s.g<t.g) { i.g = j.g; s.g=t.g; }
+      if (s.h<t.h) { i.h = j.h; s.h=t.h; }
     }
   }
 
-  if (tidx==0) {
-    A[tidy][0] = s;
-    B[tidy][0] = make_float2(i.x,i.y);  
-  }
-#endif
-}
+  t.h = __shfl_up(s.h, 7, TILESIZE);
+  j.h = __shfl_up(i.h, 7, TILESIZE);
 
-template<const int T1, const int T2>
-__device__ __inline__ void _dev_reduction(const int c, double2 * Creg,
-					  double2 L2normB[TILESIZE],
-					  double2 A[TILESIZEY][T1],
-					  double2 B[TILESIZEY][T2]) {
+  t.g = __shfl_up(s.g, 6, TILESIZE);
+  j.g = __shfl_up(i.g, 6, TILESIZE);
 
-  int tidx = threadIdx.x;
-  int tidy = threadIdx.y;
+  t.f = __shfl_up(s.f, 5, TILESIZE);
+  j.f = __shfl_up(i.f, 5, TILESIZE);
 
-  int2 i;
-  double2 s;
-  double2 t = L2normB[tidx];
+  t.e = __shfl_up(s.e, 4, TILESIZE);
+  j.e = __shfl_up(i.e, 4, TILESIZE);
 
-  Creg[0] = fma<double,double2>(-2.0,Creg[0],t);
-  vectorMin<double,double2>(Creg[0],s.x,i.x);
-  
-  Creg[1] = fma<double,double2>(-2.0,Creg[1],t);
-  vectorMin<double,double2>(Creg[1],s.y,i.y);
-    
-  A[tidy][tidx] = s;
-  B[tidy][tidx] = make_double2(i.x+c,i.y+c);
-  
-  __syncthreads();
-    
-  /* perform the partial reduction over each row in the  buffers */
-  if (tidx%2==0) {
-    A[tidy][tidx] = fmind(A[tidy][tidx],A[tidy][tidx+1],
-			  B[tidy][tidx],B[tidy][tidx+1],s);
-    B[tidy][tidx] = s;
-  }
-  if (tidx%4==0) {
-    A[tidy][tidx] = fmind(A[tidy][tidx],A[tidy][tidx+2],
-			  B[tidy][tidx],B[tidy][tidx+2],s);
-    B[tidy][tidx] = s;
-  }
-  if (tidx%8==0) {
-    A[tidy][tidx] = fmind(A[tidy][tidx],A[tidy][tidx+4],
-			  B[tidy][tidx],B[tidy][tidx+4],s);
-    B[tidy][tidx] = s;
-  }
-  if (tidx==0) {
-    A[tidy][tidx] = fmind(A[tidy][tidx],A[tidy][tidx+8],
-			  B[tidy][tidx],B[tidy][tidx+8],s);
-    B[tidy][tidx] = s;
-  }
-  __syncthreads();
-}
+  t.d = __shfl_up(s.d, 3, TILESIZE);
+  j.d = __shfl_up(i.d, 3, TILESIZE);
 
-template<const int T1, const int T2>
-__device__ __inline__ void _dev_reduction(const int c, float4 * Creg,
-					  float4 L2normB[TILESIZE],
-					  float4 A[TILESIZEY][T1],
-					  float4 B[TILESIZEY][T2]) {
+  t.c = __shfl_up(s.c, 2, TILESIZE);
+  j.c = __shfl_up(i.c, 2, TILESIZE);
 
-  int tidx = threadIdx.x;
-  int tidy = threadIdx.y;
+  t.b = __shfl_up(s.b, 1, TILESIZE);
+  j.b = __shfl_up(i.b, 1, TILESIZE);
 
-  int4 i;
-  float4 s;
-  float4 t = L2normB[tidx];
+  t.a = s.a;
+  j.a = i.a;
 
-  Creg[0] = fma<float,float4>(-2.0f,Creg[0],t);
-  vectorMin<float,float4>(Creg[0],s.x,i.x);
-  
-  Creg[1] = fma<float,float4>(-2.0f,Creg[1],t);
-  vectorMin<float,float4>(Creg[1],s.y,i.y);
-  
-  Creg[2] = fma<float,float4>(-2.0f,Creg[2],t);
-  vectorMin<float,float4>(Creg[2],s.z,i.z);
-  
-  Creg[3] = fma<float,float4>(-2.0f,Creg[3],t);
-  vectorMin<float,float4>(Creg[3],s.w,i.w);
+  float * a = reinterpret_cast<float *>(&t);
+  int * b = reinterpret_cast<int *>(&j);
 
-  i.x+=c;
-  i.y+=c;
-  i.z+=c;
-  i.w+=c;
-
-#if __CUDA_ARCH__ < 300
-  A[tidy][tidx] = s;
-  B[tidy][tidx] = make_float4(i.x,i.y,i.z,i.w);  
-    
-  /* perform the partial reduction over each row in the  buffers */
-  if (tidx%2==0) {
-    A[tidy][tidx] = fminf(A[tidy][tidx],A[tidy][tidx+1],
-			  B[tidy][tidx],B[tidy][tidx+1],s);
-    B[tidy][tidx] = s;
-  }
-  if (tidx%4==0) {
-    A[tidy][tidx] = fminf(A[tidy][tidx],A[tidy][tidx+2],
-			  B[tidy][tidx],B[tidy][tidx+2],s);
-    B[tidy][tidx] = s;
-  }
-  if (tidx%8==0) {
-    A[tidy][tidx] = fminf(A[tidy][tidx],A[tidy][tidx+4],
-			  B[tidy][tidx],B[tidy][tidx+4],s);
-    B[tidy][tidx] = s;
-  }
-  if (tidx==0) {
-    A[tidy][tidx] = fminf(A[tidy][tidx],A[tidy][tidx+8],
-			  B[tidy][tidx],B[tidy][tidx+8],s);
-    B[tidy][tidx] = s;
-  }
-#else 
-  int4 j;
-  for (int k=1; k<TILESIZE; k<<=1) {
-
-    t.x = __shfl_down(s.x, k, TILESIZE);
-    j.x = __shfl_down(i.x, k, TILESIZE);
-
-    t.y = __shfl_down(s.y, k, TILESIZE);
-    j.y = __shfl_down(i.y, k, TILESIZE);
-
-    t.z = __shfl_down(s.z, k, TILESIZE);
-    j.z = __shfl_down(i.z, k, TILESIZE);
-
-    t.w = __shfl_down(s.w, k, TILESIZE);
-    j.w = __shfl_down(i.w, k, TILESIZE);
-
-    if ((tidx%(k*2))==0) {
-      if (s.x>t.x) { i.x = j.x; s.x=t.x; }
-      if (s.y>t.y) { i.y = j.y; s.y=t.y; }
-      if (s.z>t.z) { i.z = j.z; s.z=t.z; }
-      if (s.w>t.w) { i.w = j.w; s.w=t.w; }
+  /* write out the results */
+  if (threadIdx.x<8) {
+    int k = r+threadIdx.x;
+    if (k<dev_nRowsA) {
+      int index = k*dev_nColsC+blockIdx.x;
+      C[index]        = -2.0f*a[threadIdx.x];
+      Cindices[index] = b[threadIdx.x];
     }
   }
-
-  if (tidx==0) {
-    A[tidy][0] = s;
-    B[tidy][0] = make_float4(i.x,i.y,i.z,i.w);  
-  }
-#endif
 }
-
-template<const int T1, const int T2>
-__device__ __inline__ void _dev_reduction(const int c, double4 * Creg,
-					  double4 L2normB[TILESIZE],
-					  double4 A[TILESIZEY][T1],
-					  double4 B[TILESIZEY][T2]) {
-
-  int tidx = threadIdx.x;
-  int tidy = threadIdx.y;
-
-  int4 i;
-  double4 s;
-  double4 t = L2normB[tidx];
-
-  Creg[0] = fma<double,double4>(-2.0,Creg[0],t);
-  vectorMin<double,double4>(Creg[0],s.x,i.x);
-  
-  Creg[1] = fma<double,double4>(-2.0,Creg[1],t);
-  vectorMin<double,double4>(Creg[1],s.y,i.y);
-  
-  Creg[2] = fma<double,double4>(-2.0,Creg[2],t);
-  vectorMin<double,double4>(Creg[2],s.z,i.z);
-  
-  Creg[3] = fma<double,double4>(-2.0,Creg[3],t);
-  vectorMin<double,double4>(Creg[3],s.w,i.w);
-  
-  A[tidy][tidx] = s;
-  B[tidy][tidx] = make_double4(i.x+c,i.y+c,i.z+c,i.w+c);  
-  __syncthreads();
-    
-  /* perform the partial reduction over each row in the  buffers */
-  if (tidx%2==0) {
-    A[tidy][tidx] = fmind(A[tidy][tidx],A[tidy][tidx+1],
-			  B[tidy][tidx],B[tidy][tidx+1],s);
-    B[tidy][tidx] = s;
-  }
-  if (tidx%4==0) {
-    A[tidy][tidx] = fmind(A[tidy][tidx],A[tidy][tidx+2],
-			  B[tidy][tidx],B[tidy][tidx+2],s);
-    B[tidy][tidx] = s;
-  }
-  if (tidx%8==0) {
-    A[tidy][tidx] = fmind(A[tidy][tidx],A[tidy][tidx+4],
-			  B[tidy][tidx],B[tidy][tidx+4],s);
-    B[tidy][tidx] = s;
-  }
-  if (tidx==0) {
-    A[tidy][tidx] = fmind(A[tidy][tidx],A[tidy][tidx+8],
-			  B[tidy][tidx],B[tidy][tidx+8],s);
-    B[tidy][tidx] = s;
-  }
-  __syncthreads();
-}
-
-// template<class TYPE, const int T1, const int T2, const int N_UNROLL>
-// __device__ __inline__ void _dev_reduction(const int c, TYPE Creg[N_UNROLL*N_UNROLL],
-// 					  TYPE L2normB[N_UNROLL*TILESIZE],
-// 					  TYPE A[N_UNROLL*TILESIZEY][T1],
-// 					  TYPE B[N_UNROLL*TILESIZEY][T2]) {
-
-//   int tidx = threadIdx.x;
-//   int tidy = threadIdx.y;
-
-//   int4 i;
-//   float4 s;
-//   float4 t = L2normB[tidx];
-
-//   Creg[0] = fma<float,float4>(-2.0f,Creg[0],t);
-//   vectorMin<float,float4>(Creg[0],s.x,i.x);
-  
-//   Creg[1] = fma<float,float4>(-2.0f,Creg[1],t);
-//   vectorMin<float,float4>(Creg[1],s.y,i.y);
-  
-//   Creg[2] = fma<float,float4>(-2.0f,Creg[2],t);
-//   vectorMin<float,float4>(Creg[2],s.z,i.z);
-  
-//   Creg[3] = fma<float,float4>(-2.0f,Creg[3],t);
-//   vectorMin<float,float4>(Creg[3],s.w,i.w);
-
-//   A[tidy][tidx] = s;
-//   B[tidy][tidx] = make_float4(i.x+c,i.y+c,i.z+c,i.w+c);  
-//   __syncthreads();
-    
-//   /* perform the partial reduction over each row in the  buffers */
-//   if (tidx%2==0) {
-//     A[tidy][tidx] = fminf(A[tidy][tidx],A[tidy][tidx+1],
-// 			  B[tidy][tidx],B[tidy][tidx+1],s);
-//     B[tidy][tidx] = s;
-//   }
-//   if (tidx%4==0) {
-//     A[tidy][tidx] = fminf(A[tidy][tidx],A[tidy][tidx+2],
-// 			  B[tidy][tidx],B[tidy][tidx+2],s);
-//     B[tidy][tidx] = s;
-//   }
-//   if (tidx%8==0) {
-//     A[tidy][tidx] = fminf(A[tidy][tidx],A[tidy][tidx+4],
-// 			  B[tidy][tidx],B[tidy][tidx+4],s);
-//     B[tidy][tidx] = s;
-//   }
-//   if (tidx==0) {
-//     A[tidy][tidx] = fminf(A[tidy][tidx],A[tidy][tidx+8],
-// 			  B[tidy][tidx],B[tidy][tidx+8],s);
-//     B[tidy][tidx] = s;
-//   }
-//   __syncthreads();
-// }
 
 #endif /* !defined(_REDUCTION_HCU_) */
