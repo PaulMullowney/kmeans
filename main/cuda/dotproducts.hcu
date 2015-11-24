@@ -9,8 +9,8 @@ __device__ __inline__ void _dev_dotproducts(float4 A[TILESIZE][T1],
     float4 t1, t2;
 #pragma unroll 
     for (int k=0; k<TILESIZE; ++k) {
-      t1 = A[threadIdx.y][k];
       t2 = B[threadIdx.x][k];
+      t1 = A[threadIdx.y][k];
       
       Creg[0] = fma<float,float4>(t1.x,t2,Creg[0]);
       Creg[1] = fma<float,float4>(t1.y,t2,Creg[1]);
@@ -35,8 +35,8 @@ __device__ __inline__ void _dev_dotproductsF(float4 A[TILESIZE][T1],
     float4 t1, t2;
 #pragma unroll
     for (int k=0; k<LENGTH; ++k) {
-      t1 = A[threadIdx.y][k];
       t2 = B[threadIdx.x][k];
+      t1 = A[threadIdx.y][k];
       
       Creg[0] = fma<float,float4>(t1.x,t2,Creg[0]);
       Creg[1] = fma<float,float4>(t1.y,t2,Creg[1]);

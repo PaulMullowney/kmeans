@@ -39,7 +39,7 @@ __global__ void _dev_ClosestCentersStripedBegin(const TYPE * __restrict__ A, con
   multiplyStriped<TYPE,VTYPE,N_UNROLL,DELTA>(a, b, Creg, Ashmem, Bshmem);
 
   /* perform the partial reduction over each row in the shmem buffers */
-  _dev_reduction<TILESIZEY,TILESIZEX>(r, c, Creg, Ashmem, Bshmem, C, Cindices);
+  _dev_reduction<TILESIZEY,TILESIZEX>(r, c, Creg, C, Cindices);
 }
 
 
@@ -79,7 +79,7 @@ __global__ void _dev_ClosestCentersBegin(const TYPE * __restrict__ A, const TYPE
   multiply<TYPE,VTYPE,N_UNROLL,DELTA>(a, b, Creg, Ashmem, Bshmem);
 
   /* perform the partial reduction over each row in the shmem buffers */
-  _dev_reduction<TILESIZEY,TILESIZEX>(r, c, Creg, Ashmem, Bshmem, C, Cindices);
+  _dev_reduction<TILESIZEY,TILESIZEX>(r, c, Creg, C, Cindices);
 }
 
 
@@ -99,6 +99,27 @@ inline __device__ TYPE fmin(TYPE a, TYPE b, int ia, int ib, int& i)
 {
   if (a<=b) {i=ia; return a; }
   else {i=ib; return b; }
+}
+
+
+template<class TYPE>
+__global__ void _dev_ClosestCentersEndNew(const int m0, const int n,
+					  const TYPE * __restrict__ C,
+					  const int * __restrict__ Cindices,
+					  int * __restrict__ CindicesFinal) {
+  
+  for (int tidx = blockIdx.x*blockDim.x + threadIdx.x; tidx<n; tidx+=gridDim.x*blockDim.x) {
+    TYPE dataReg = FLT_MAX;
+    int indexReg = -1;
+    for (int i=0; i<dev_nColsC; ++i) {
+      TYPE val = C[i*dev_nRowsA+tidx];
+      if (val<dataReg) {
+	dataReg = val;
+	indexReg = Cindices[i*dev_nRowsA+tidx];
+      }
+    }
+    CindicesFinal[m0 + tidx] = indexReg;
+  }
 }
 
 template<class TYPE, const int SHMEMSIZEX, const int SHMEMSIZEY>
@@ -288,6 +309,11 @@ kmeansCudaErrorStatus ClosestCenters(const int m0, const int nRowsA, const int n
 
     CUDA_SAFE_CALL(cudaGetLastError(),ERROR_CLOSESTCENTERS);
 
+
+#if 1
+    const int nThreads = 128;
+    _dev_ClosestCentersEndNew<TYPE><<<getMaxConcurrentBlocks(),nThreads>>>(m0,nRowsA,C,Cindices,CindicesFinal);
+#else
     const int nThreads = 128;
     grid = dim3(getMaxConcurrentBlocks(), 1, 1);
     int shift = nextPowerOfTwo(nColsC);
@@ -309,7 +335,7 @@ kmeansCudaErrorStatus ClosestCenters(const int m0, const int nRowsA, const int n
       _dev_ClosestCentersEnd<TYPE,64,2><<<grid,block>>>(m0,nRowsA,nColsC,shift,C,Cindices,CindicesFinal);
     else 
       _dev_ClosestCentersEnd<TYPE,128,1><<<grid,block>>>(m0,nRowsA,nColsC,shift,C,Cindices,CindicesFinal);
-    
+#endif    
     CUDA_SAFE_CALL(cudaGetLastError(),ERROR_CLOSESTCENTERS);
   } catch (...) {
     return ERROR_CLOSESTCENTERS;
