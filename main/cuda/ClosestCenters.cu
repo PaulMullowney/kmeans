@@ -9,8 +9,8 @@ __launch_bounds__(256,N_BLOCKS)
 __global__ void _dev_ClosestCentersStripedBegin(const TYPE * __restrict__ A, const TYPE * __restrict__ B,
 						const TYPE * __restrict__ normColsOfB_squared,
 						TYPE * __restrict__ C, int * __restrict__ Cindices) {
-  __shared__ VTYPE Ashmem[TILESIZE][TILESIZEY];
-  __shared__ VTYPE Bshmem[TILESIZE][TILESIZEX];
+  __shared__ VTYPE Ashmem[2*TILESIZE][TILESIZEY];
+  __shared__ VTYPE Bshmem[2*TILESIZE][TILESIZEX];
 
   /* load the vector data */
   if (threadIdx.y<N_UNROLL) {
@@ -49,8 +49,8 @@ __global__ void _dev_ClosestCentersBegin(const TYPE * __restrict__ A, const TYPE
 					 const TYPE * __restrict__ normColsOfB_squared,
 					 TYPE * __restrict__ C, int * __restrict__ Cindices) {
 
-  __shared__ VTYPE Ashmem[TILESIZE][TILESIZEY];
-  __shared__ VTYPE Bshmem[TILESIZE][TILESIZEX];
+  __shared__ VTYPE Ashmem[2*TILESIZE][TILESIZEY];
+  __shared__ VTYPE Bshmem[2*TILESIZE][TILESIZEX];
 
   /* load the vector data */
   if (threadIdx.y<N_UNROLL) {
